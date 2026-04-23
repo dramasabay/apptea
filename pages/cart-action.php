@@ -38,6 +38,9 @@ if ($action === 'add') {
     $vid         = (isset($_POST['variant_id']) && $_POST['variant_id'] !== '') ? (int)$_POST['variant_id'] : null;
     $optionsText = trim($_POST['options_text'] ?? '');
     $optionsRaw  = trim($_POST['options'] ?? '[]');
+    // Get the calculated unit price and discount from client (for quantity discounts)
+    $unitPrice   = isset($_POST['unit_price']) ? (float)$_POST['unit_price'] : null;
+    $discountPct = isset($_POST['discount_pct']) ? (float)$_POST['discount_pct'] : 0;
 
     if (!$pid) respond(false, 0, 'Invalid product');
 
@@ -64,10 +67,31 @@ if ($action === 'add') {
         }
     }
 
+    // Calculate base price (use sale_price if available)
+    $basePrice = (float)($prod['sale_price'] ?? $prod['price']);
+    
+    // If no unit_price provided from client, calculate it server-side
+    if ($unitPrice === null) {
+        $unitPrice = $basePrice + $optionsExtra;
+        // Apply quantity discount if applicable
+        if ($discountPct > 0) {
+            $unitPrice = $unitPrice * (1 - $discountPct / 100);
+        }
+    } else {
+        // Client provided unit_price, verify it's reasonable (within 1% of expected)
+        $expectedPrice = ($basePrice + $optionsExtra) * (1 - $discountPct / 100);
+        if (abs($unitPrice - $expectedPrice) > 0.01) {
+            // Price mismatch, recalculate server-side
+            $unitPrice = $expectedPrice;
+        }
+    }
+
     $optionsStore = json_encode([
-        'text'    => $optionsText,
-        'options' => $selectedOptions,
-        'extra'   => round($optionsExtra, 2),
+        'text'        => $optionsText,
+        'options'     => $selectedOptions,
+        'extra'       => round($optionsExtra, 2),
+        'unit_price'  => round($unitPrice, 2),
+        'discount_pct'=> round($discountPct, 2),
     ]);
 
     // Find existing cart line with same product + variant + options

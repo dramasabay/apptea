@@ -23,7 +23,12 @@ foreach ($items as &$item) {
     elseif (isset($optData['selections'])) foreach ($optData['selections'] as $sel) $extra += (float)($sel['price_add'] ?? 0);
     $item['options_extra'] = $extra;
     $item['options_label'] = $optData['text'] ?? ($optData['label'] ?? '');
-    $item['unit_price']    = (float)$item['base_price'] + $extra;
+    // Use stored unit_price if available (includes quantity discount), otherwise calculate
+    if (isset($optData['unit_price']) && $optData['unit_price'] > 0) {
+        $item['unit_price'] = (float)$optData['unit_price'];
+    } else {
+        $item['unit_price'] = (float)$item['base_price'] + $extra;
+    }
 }
 unset($item);
 
@@ -138,7 +143,7 @@ require_once __DIR__ . '/../includes/header.php';
 .place-order-btn{width:100%;padding:16px;background:var(--primary);color:#fff;border:none;border-radius:16px;font-size:16px;font-weight:700;cursor:pointer;transition:background .2s;margin-top:12px;}
 .place-order-btn:hover{background:var(--primary-dark,#1e4d38);}
 .place-order-btn:disabled{background:#9ca3af;cursor:not-allowed;}
-@media(max-width:900px){.checkout-grid{grid-template-columns:1fr!important;}}
+@media(max-width:900px){.checkout-grid{display:flex;flex-direction:column;}.checkout-summary-card{order:2;position:relative!important;top:auto!important;}}
 </style>
 
 <div class="container" style="max-width:1200px;padding:24px 16px;">
@@ -253,7 +258,7 @@ require_once __DIR__ . '/../includes/header.php';
                 </div>
             </div>
 
-            <!-- RIGHT: Order Summary -->
+            <!-- RIGHT: Order Summary (moved after payment on mobile) -->
             <div class="checkout-summary-card" style="position:sticky;top:80px;">
                 <div class="checkout-section">
                     <h3 style="font-size:16px;font-weight:800;margin-bottom:16px;">🛒 Order Summary</h3>
@@ -271,9 +276,26 @@ require_once __DIR__ . '/../includes/header.php';
                             <?php if ($item['options_label']): ?>
                             <div style="font-size:11px;color:#6b7280;"><?= htmlspecialchars($item['options_label']) ?></div>
                             <?php endif; ?>
-                            <div style="font-size:11px;color:#6b7280;">Qty: <?= (int)$item['qty'] ?></div>
+                            <div style="font-size:11px;color:#6b7280;">Qty: <?= (int)$item['qty'] ?>
+                            <?php 
+                            $optDataQty = json_decode($item['options_json'] ?? '{}', true);
+                            $discountPctQty = isset($optDataQty['discount_pct']) ? (float)$optDataQty['discount_pct'] : 0;
+                            if ($discountPctQty > 0): 
+                            ?>
+                            <span style="color:#16a34a;font-weight:700;margin-left:4px;">(<?= number_format($discountPctQty, 0) ?>% OFF)</span>
+                            <?php endif; ?>
+                            </div>
                         </div>
-                        <div style="font-size:13px;font-weight:800;color:#0f172a;white-space:nowrap"><?= formatPrice($item['unit_price'] * $item['qty']) ?></div>
+                        <div style="text-align:right;white-space:nowrap;">
+                            <?php 
+                            $optDataChk = json_decode($item['options_json'] ?? '{}', true);
+                            $discountPctChk = isset($optDataChk['discount_pct']) ? (float)$optDataChk['discount_pct'] : 0;
+                            if ($discountPctChk > 0): 
+                            ?>
+                            <div style="font-size:11px;color:#9ca3af;text-decoration:line-through;"><?= formatPrice($item['base_price'] * $item['qty']) ?></div>
+                            <?php endif; ?>
+                            <div style="font-size:13px;font-weight:800;color:#0f172a;"><?= formatPrice($item['unit_price'] * $item['qty']) ?></div>
+                        </div>
                     </div>
                     <?php endforeach; ?>
 
