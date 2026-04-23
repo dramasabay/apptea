@@ -87,7 +87,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
     $groupCheckboxes = [
         'general'       => ['announcement_bar_enabled','show_telegram_btn','maintenance_mode','show_out_of_stock','reviews_enabled','guest_checkout'],
         'homepage'      => ['show_sale_badge','show_new_badge'],
-        'payment'       => ['stripe_enabled','paypal_enabled','cod_enabled','stripe_publishable_key','stripe_secret_key','paypal_client_id','paypal_secret','paypal_mode','currency_code'],
+        'payment'       => ['stripe_enabled','paypal_enabled','cod_enabled'],
         'notifications' => ['telegram_notify_orders','telegram_notify_lowstock'],
         'theme'         => [],
         'shipping'      => [],
@@ -96,6 +96,14 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
     ];
     foreach ($groupCheckboxes[$group] ?? [] as $ck) {
         setSetting($ck, isset($_POST[$ck]) ? '1' : '0', $group);
+    }
+    // Process text/select fields for payment group
+    if ($group === 'payment') {
+        foreach (['stripe_publishable_key','stripe_secret_key','paypal_client_id','paypal_secret','paypal_mode','currency_code'] as $field) {
+            if (isset($_POST['val_'.$field])) {
+                setSetting($field, $_POST['val_'.$field], 'payment');
+            }
+        }
     }
     clearSettingCache();
     flash('success','Settings saved!');
