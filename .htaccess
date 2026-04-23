@@ -1,0 +1,60 @@
+RewriteEngine On
+
+# ─── Security Headers ────────────────────────────────────────────────────────
+<IfModule mod_headers.c>
+    Header always set X-Frame-Options "SAMEORIGIN"
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-XSS-Protection "1; mode=block"
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+    Header always set Permissions-Policy "geolocation=(), microphone=(), camera=()"
+    Header unset Server
+    Header unset X-Powered-By
+</IfModule>
+
+# ─── Block access to sensitive files ─────────────────────────────────────────
+<FilesMatch "\.(sql|env|log|bak|sh)$">
+    Order Allow,Deny
+    Deny from all
+</FilesMatch>
+<Files "setup.php">
+    Order Allow,Deny
+    Deny from all
+</Files>
+<Files "setup.php.bak">
+    Order Allow,Deny
+    Deny from all
+</Files>
+
+# ─── Block directory browsing ─────────────────────────────────────────────────
+Options -Indexes
+
+# ─── Block direct access to includes ─────────────────────────────────────────
+RewriteRule ^includes/ - [F,L]
+
+# ─── Only redirect GET browser requests to clean URLs ───────────────────────
+RewriteCond %{REQUEST_METHOD} GET
+RewriteCond %{THE_REQUEST} \s/+index\.php(?:[\?\s]|$) [NC]
+RewriteRule ^index\.php$ / [R=301,L]
+
+RewriteCond %{REQUEST_METHOD} GET
+RewriteCond %{THE_REQUEST} \s/+pages/([A-Za-z0-9_-]+)\.php(?:[\?\s]|$) [NC]
+RewriteRule ^pages/([A-Za-z0-9_-]+)\.php$ /%1 [R=301,L]
+
+RewriteCond %{REQUEST_METHOD} GET
+RewriteCond %{THE_REQUEST} \s/+admin/index\.php(?:[\?\s]|$) [NC]
+RewriteRule ^admin/index\.php$ /admin [R=301,L]
+
+RewriteCond %{REQUEST_METHOD} GET
+RewriteCond %{THE_REQUEST} \s/+admin/([A-Za-z0-9_-]+)\.php(?:[\?\s]|$) [NC]
+RewriteRule ^admin/([A-Za-z0-9_-]+)\.php$ /admin/%1 [R=301,L]
+
+# ─── Existing files/directories pass through ────────────────────────────────
+RewriteCond %{REQUEST_FILENAME} -f [OR]
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^ - [L]
+
+# ─── Clean URL routing ──────────────────────────────────────────────────────
+RewriteRule ^$ index.php [L,QSA]
+RewriteRule ^admin/?$ admin/index.php [L,QSA]
+RewriteRule ^admin/([A-Za-z0-9_-]+)/?$ admin/$1.php [L,QSA]
+RewriteRule ^([A-Za-z0-9_-]+)/?$ pages/$1.php [L,QSA]
