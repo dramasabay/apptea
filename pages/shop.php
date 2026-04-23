@@ -144,8 +144,8 @@ function productCard($p) {
                 <h3>Pet Type</h3>
                 <ul>
                     <li><a href="?<?= http_build_query(array_merge($_GET, ['tea'=>'', 'page'=>1])) ?>" class="<?= !$pet ? 'active' : '' ?>">All Teas</a></li>
-                    <li><a href="?<?= http_build_query(array_merge($_GET, ['tea'=>'dog', 'page'=>1])) ?>" class="<?= $pet==='dog' ? 'active' : '' ?>">🍃 Green Tea</a></li>
-                    <li><a href="?<?= http_build_query(array_merge($_GET, ['tea'=>'cat', 'page'=>1])) ?>" class="<?= $pet==='cat' ? 'active' : '' ?>">🫖 Black Tea</a></li>
+                    <li><a href="?<?= http_build_query(array_merge($_GET, ['tea'=>'green', 'page'=>1])) ?>" class="<?= $pet==='green' ? 'active' : '' ?>">🍃 Green Tea</a></li>
+                    <li><a href="?<?= http_build_query(array_merge($_GET, ['tea'=>'black', 'page'=>1])) ?>" class="<?= $pet==='black' ? 'active' : '' ?>">🫖 Black Tea</a></li>
                 </ul>
             </div>
             <div class="filter-box">

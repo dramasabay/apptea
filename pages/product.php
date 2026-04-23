@@ -101,7 +101,7 @@ function renderMiniCard(array $p): string {
     $siteUrl = SITE_URL;
     $price   = $p['sale_price'] ?? $p['price'];
     $disc    = $p['sale_price'] ? round((1 - $p['sale_price']/$p['price']) * 100) : 0;
-    $emoji   = $p['tea_type'] === 'dog' ? '🍃' : ($p['tea_type'] === 'cat' ? '🫖' : '🍵');
+    $emoji   = $p['tea_type'] === 'green' ? '🍃' : ($p['tea_type'] === 'black' ? '🫖' : '🍵');
     ob_start(); ?>
     <div class="product-card" onclick="openModal(<?= (int)$p['id'] ?>)">
         <div class="product-badge">
