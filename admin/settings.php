@@ -87,7 +87,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
     $groupCheckboxes = [
         'general'       => ['announcement_bar_enabled','show_telegram_btn','maintenance_mode','show_out_of_stock','reviews_enabled','guest_checkout'],
         'homepage'      => ['show_sale_badge','show_new_badge'],
-        'payment'       => ['stripe_enabled','paypal_enabled','stripe_publishable_key','stripe_secret_key','paypal_client_id','paypal_secret','paypal_mode','currency_code'],
+        'payment'       => ['stripe_enabled','paypal_enabled','cod_enabled','stripe_publishable_key','stripe_secret_key','paypal_client_id','paypal_secret','paypal_mode','currency_code'],
         'notifications' => ['telegram_notify_orders','telegram_notify_lowstock'],
         'theme'         => [],
         'shipping'      => [],
@@ -452,6 +452,7 @@ async function saveUtilityPills(){
     <h3><i class="fas fa-toggle-on" style="color:var(--primary)"></i> Payment Methods</h3>
     <div class="settings-row"><div><label>💳 Stripe Payments</label></div><label class="toggle-switch"><input type="checkbox" name="stripe_enabled" <?=isOn('stripe_enabled','1')?'checked':''?>><span class="toggle-slider"></span></label></div>
     <div class="settings-row"><div><label>🅿️ PayPal Payments</label></div><label class="toggle-switch"><input type="checkbox" name="paypal_enabled" <?=isOn('paypal_enabled','1')?'checked':''?>><span class="toggle-slider"></span></label></div>
+    <div class="settings-row"><div><label>💵 Cash on Delivery (COD)</label><p>Allow customers to pay cash when receiving their order</p></div><label class="toggle-switch"><input type="checkbox" name="cod_enabled" <?=isOn('cod_enabled', '0') ? 'checked' : '' ?>><span class="toggle-slider"></span></label></div>
     <h4 style="font-weight:700;margin:20px 0 10px;font-size:14px;">Stripe Configuration</h4>
     <div class="settings-row"><div><label>Stripe Publishable Key</label><p>pk_test_... or pk_live_...</p></div><input type="text" name="val_stripe_publishable_key" value="<?=s('stripe_publishable_key','')?>" class="settings-input" placeholder="pk_test_..."></div>
     <div class="settings-row"><div><label>Stripe Secret Key</label><p>sk_test_... or sk_live_... (keep secret!)</p></div><input type="password" name="val_stripe_secret_key" value="<?=s('stripe_secret_key','')?>" class="settings-input" placeholder="sk_test_..."></div>
@@ -460,6 +461,8 @@ async function saveUtilityPills(){
     <div class="settings-row"><div><label>PayPal Client ID</label><p>From PayPal Developer Dashboard</p></div><input type="text" name="val_paypal_client_id" value="<?=s('paypal_client_id','')?>" class="settings-input" placeholder="AaBbCc..."></div>
     <div class="settings-row"><div><label>PayPal Secret</label><p>Keep this secret!</p></div><input type="password" name="val_paypal_secret" value="<?=s('paypal_secret','')?>" class="settings-input" placeholder="Secret..."></div>
     <div class="settings-row"><div><label>Currency Code</label><p>ISO code e.g. USD, EUR, GBP</p></div><input type="text" name="val_currency_code" value="<?=s('currency_code','USD')?>" class="settings-input" style="max-width:100px" maxlength="3"></div>
+</div>
+<button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Save Payment Settings</button>
 </form>
 
 <?php elseif($activeTab==='notifications'): ?>

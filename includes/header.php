@@ -134,6 +134,8 @@ $assetCssVer = @filemtime(__DIR__ . '/../assets/css/style.css') ?: time();
         <!-- Desktop Nav -->
         <nav class="main-nav">
             <ul>
+                <?php if ($useDefaultNav): ?>
+                <!-- Default menu (shown when no custom menu items exist) -->
                 <li><a href="<?= pretty_url('index.php') ?>"><i class="fas fa-home" style="margin-right:6px;"></i>Home</a></li>
                 <li><a href="<?= pretty_url('pages/shop.php') ?>"><i class="fas fa-store" style="margin-right:6px;"></i>Shop</a></li>
                 <li class="has-dropdown" style="position:relative;">
@@ -158,6 +160,33 @@ $assetCssVer = @filemtime(__DIR__ . '/../assets/css/style.css') ?: time();
                     </ul>
                 </li>
                 <li><a href="<?= pretty_url('pages/contact.php') ?>"><i class="fas fa-envelope" style="margin-right:6px;"></i>Contact Us</a></li>
+                <?php else: ?>
+                <!-- Custom menu from CMS -->
+                <?php foreach ($navMenuItems as $item): 
+                    $targetAttr = $item['open_new_tab'] ? ' target="_blank" rel="noopener"' : '';
+                    $hasChildren = !empty($item['children']);
+                ?>
+                <li<?= $hasChildren ? ' class="has-dropdown" style="position:relative;"' : '' ?>>
+                    <a href="<?= htmlspecialchars($item['url']) ?>"<?= $targetAttr ?>>
+                        <?php if ($item['icon']): ?><i class="<?= htmlspecialchars($item['icon']) ?>" style="margin-right:6px;"></i><?php endif; ?>
+                        <?= htmlspecialchars($item['label']) ?>
+                        <?php if ($hasChildren): ?><i class="fas fa-chevron-down" style="font-size:9px;margin-left:4px;"></i><?php endif; ?>
+                    </a>
+                    <?php if ($hasChildren): ?>
+                    <ul class="nav-custom-dropdown">
+                        <?php foreach ($item['children'] as $child): 
+                            $childTarget = $child['open_new_tab'] ? ' target="_blank" rel="noopener"' : '';
+                        ?>
+                        <li><a href="<?= htmlspecialchars($child['url']) ?>"<?= $childTarget ?>>
+                            <?php if ($child['icon']): ?><i class="<?= htmlspecialchars($child['icon']) ?>" style="margin-right:6px;"></i><?php endif; ?>
+                            <?= htmlspecialchars($child['label']) ?>
+                        </a></li>
+                        <?php endforeach; ?>
+                    </ul>
+                    <?php endif; ?>
+                </li>
+                <?php endforeach; ?>
+                <?php endif; ?>
             </ul>
         </nav>
 
@@ -206,6 +235,8 @@ $assetCssVer = @filemtime(__DIR__ . '/../assets/css/style.css') ?: time();
         </form>
     </div>
     <ul>
+        <?php if ($useDefaultNav): ?>
+        <!-- Default mobile menu -->
         <li><a href="<?= pretty_url('index.php') ?>"><i class="fas fa-home"></i>Home</a></li>
         <li><a href="<?= pretty_url('pages/shop.php') ?>"><i class="fas fa-store"></i>Shop</a></li>
         <li><a href="<?= pretty_url('pages/contact.php') ?>"><i class="fas fa-envelope"></i>Contact Us</a></li>
@@ -223,7 +254,20 @@ $assetCssVer = @filemtime(__DIR__ . '/../assets/css/style.css') ?: time();
                 <li><a href="<?= pretty_url('pages/shop.php') ?>?tea=oolong"><span style="margin-right:10px;">🍂</span>Oolong Tea</a></li>
                 <li><a href="<?= pretty_url('pages/shop.php') ?>?cat=tea-accessories"><span style="margin-right:10px;">🫙</span>Accessories</a></li>
         <?php } } catch (\Exception $e) {} ?>
-                <li><a href="<?= pretty_url('pages/cart.php') ?>"><i class="fas fa-shopping-bag"></i>Cart <span class="cart-count" style="background:var(--primary);color:#fff;padding:2px 7px;border-radius:12px;font-size:11px;margin-left:6px;"><?= getCartCount() ?></span></a></li>
+        <?php else: ?>
+        <!-- Custom mobile menu from CMS -->
+        <?php foreach ($navMenuItems as $item): 
+            $targetAttr = $item['open_new_tab'] ? ' target="_blank" rel="noopener"' : '';
+        ?>
+        <li>
+            <a href="<?= htmlspecialchars($item['url']) ?>"<?= $targetAttr ?>>
+                <?php if ($item['icon']): ?><i class="<?= htmlspecialchars($item['icon']) ?>"></i><?php else: ?><i class="fas fa-link"></i><?php endif; ?>
+                <?= htmlspecialchars($item['label']) ?>
+            </a>
+        </li>
+        <?php endforeach; ?>
+        <?php endif; ?>
+        <li><a href="<?= pretty_url('pages/cart.php') ?>"><i class="fas fa-shopping-bag"></i>Cart <span class="cart-count" style="background:var(--primary);color:#fff;padding:2px 7px;border-radius:12px;font-size:11px;margin-left:6px;"><?= getCartCount() ?></span></a></li>
         <?php if (isLoggedIn()): ?>
         <li><a href="<?= pretty_url('pages/account.php') ?>"><i class="fas fa-user"></i>My Account</a></li>
         <li><a href="<?= pretty_url('pages/wishlist.php') ?>"><i class="fas fa-heart"></i>Wishlist</a></li>
