@@ -6,8 +6,14 @@ $sid = session_id();
 $uid = $_SESSION['user_id'] ?? null;
 
 function teastoreCartItemUnitPrice(array $item): float {
-    $base = (float)($item['base_price'] ?? $item['unit_price'] ?? 0);
     $optData = json_decode($item['options_json'] ?? '{}', true) ?: [];
+    
+    // If unit_price is already stored in options_json (from quantity discount calculation), use it
+    if (isset($optData['unit_price'])) {
+        return (float)$optData['unit_price'];
+    }
+    
+    $base = (float)($item['base_price'] ?? $item['unit_price'] ?? 0);
     $extra = 0.0;
     if (isset($optData['extra'])) {
         $extra = (float)$optData['extra'];
@@ -176,14 +182,25 @@ require_once __DIR__ . '/../includes/header.php';
                                 <?php if ($item['options_label']): ?>
                                     <span class="cart-addon"><i class="fas fa-sliders"></i> <?= htmlspecialchars($item['options_label']) ?></span>
                                 <?php endif; ?>
-                                <?php if (($item['unit_price'] - (float)$item['base_price']) > 0): ?>
+                                <?php 
+                                $optData = json_decode($item['options_json'] ?? '{}', true) ?: [];
+                                $discountPct = (float)($optData['discount_pct'] ?? 0);
+                                ?>
+                                <?php if ($discountPct > 0): ?>
+                                    <span class="cart-discount-badge" style="background:#dcfce7;color:#166534;font-size:11px;font-weight:700;padding:3px 8px;border-radius:999px;display:inline-flex;align-items:center;gap:4px;margin-right:6px;"><i class="fas fa-tag"></i> <?= number_format($discountPct, 0) ?>% OFF</span>
+                                <?php endif; ?>
+                                <?php if (($item['unit_price'] - (float)$item['base_price']) > 0 && $discountPct <= 0): ?>
+                                    <span>Includes add-ons: <strong><?= formatPrice($item['unit_price'] - (float)$item['base_price']) ?></strong></span>
+                                <?php elseif (($item['unit_price'] - (float)$item['base_price']) > 0): ?>
                                     <span>Includes add-ons: <strong><?= formatPrice($item['unit_price'] - (float)$item['base_price']) ?></strong></span>
                                 <?php endif; ?>
                             </div>
                         </div>
                         <div>
                             <div class="cart-price"><?= formatPrice($item['unit_price']) ?></div>
-                            <?php if (($item['unit_price'] - (float)$item['base_price']) > 0): ?>
+                            <?php if ($discountPct > 0): ?>
+                                <div class="cart-muted" style="text-decoration:line-through;color:#94a3b8;"><?= formatPrice((float)$item['base_price'] + (float)$optData['extra']) ?> <span style="font-size:10px;">(before discount)</span></div>
+                            <?php elseif (($item['unit_price'] - (float)$item['base_price']) > 0): ?>
                                 <div class="cart-muted">Base <?= formatPrice((float)$item['base_price']) ?></div>
                             <?php endif; ?>
                         </div>

@@ -533,6 +533,8 @@ const PDP_STOCK       = <?= (int)$product['stock'] ?>;
 const PDP_OPTION_GROUPS = <?= json_encode($optionGroups, JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES) ?>;
 // All image URLs for gallery/lightbox
 const PDP_IMAGES = <?= json_encode(array_map(fn($f) => SITE_URL.'/assets/img/products/'.$f, $allImages), JSON_UNESCAPED_SLASHES) ?>;
+// Quantity discount tiers
+const PDP_DISCOUNT_TIERS = <?= json_encode($discountTiers, JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES) ?>;
 
 let pdpActiveIdx = 0;
 let pdpSelected  = {};
@@ -652,6 +654,24 @@ function refreshPdpTotal() {
     const qty   = Math.max(1, parseInt(document.getElementById('pdpQty')?.value||'1',10));
     let total   = getSelectedVariantPrice();
     Object.values(pdpSelected).forEach(arr => arr.forEach(s => { total += parseFloat(s.price_add||0); }));
+    
+    // Apply quantity discount if applicable
+    let discountPct = 0;
+    if (PDP_DISCOUNT_TIERS && PDP_DISCOUNT_TIERS.length > 0) {
+        for (let i = PDP_DISCOUNT_TIERS.length - 1; i >= 0; i--) {
+            const tier = PDP_DISCOUNT_TIERS[i];
+            if (qty >= parseInt(tier.min_qty)) {
+                discountPct = parseFloat(tier.discount_pct);
+                break;
+            }
+        }
+    }
+    
+    // Apply discount to the base price + options
+    if (discountPct > 0) {
+        total = total * (1 - discountPct / 100);
+    }
+    
     const line  = total * qty;
     const main  = document.getElementById('pdpPriceMain');
     const cta   = document.getElementById('pdpCartTotal');
@@ -698,7 +718,27 @@ async function productPageAddToCart() {
     const qty     = Math.max(1, parseInt(document.getElementById('pdpQty')?.value||'1',10));
     const variant = document.getElementById('selectedVariant')?.value || '';
     const btn     = document.getElementById('pdpAddBtn');
-    const total   = document.getElementById('pdpCartTotal')?.textContent || '';
+    
+    // Calculate the final price with discount for accurate cart total display
+    let unitPrice = getSelectedVariantPrice();
+    Object.values(pdpSelected).forEach(arr => arr.forEach(s => { unitPrice += parseFloat(s.price_add||0); }));
+    
+    // Apply quantity discount
+    let discountPct = 0;
+    if (PDP_DISCOUNT_TIERS && PDP_DISCOUNT_TIERS.length > 0) {
+        for (let i = PDP_DISCOUNT_TIERS.length - 1; i >= 0; i--) {
+            const tier = PDP_DISCOUNT_TIERS[i];
+            if (qty >= parseInt(tier.min_qty)) {
+                discountPct = parseFloat(tier.discount_pct);
+                break;
+            }
+        }
+    }
+    if (discountPct > 0) {
+        unitPrice = unitPrice * (1 - discountPct / 100);
+    }
+    
+    const total   = '$' + (unitPrice * qty).toFixed(2);
     const oldHTML = btn.innerHTML;
     btn.disabled  = true;
     btn.innerHTML = '<span><i class="fas fa-spinner fa-spin"></i> Adding...</span><span class="pdp-cart-total">' + total + '</span>';
@@ -711,6 +751,9 @@ async function productPageAddToCart() {
         if (variant) fd.append('variant_id', variant);
         fd.append('options',      JSON.stringify(pdpSelected));
         fd.append('options_text', buildOptionsText());
+        // Pass the calculated unit price and discount to cart-action.php
+        fd.append('unit_price', unitPrice.toFixed(2));
+        fd.append('discount_pct', discountPct);
 
         const url = document.querySelector('meta[name="cart-action-url"]')?.content
                   || (getSiteUrl() + '/pages/cart-action.php');
