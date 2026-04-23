@@ -54,8 +54,8 @@ $visibleSections = array_column($rawSections, 'section_key');
 // ─── Load product data only for visible sections ─────────────────────────────
 $_homeLimit = max(1, min(20, (int)(getSetting('home_products_per_section', '8'))));
 $newProducts      = in_array('new_arrivals',$visibleSections) ? teastoreSafeQueryAll("SELECT p.*,b.name AS brand_name FROM products p LEFT JOIN brands b ON p.brand_id=b.id WHERE p.is_new=1 ORDER BY p.created_at DESC LIMIT {$_homeLimit}") : [];
-$greenTeaProducts      = in_array('green_tea',$visibleSections)         ? teastoreSafeQueryAll("SELECT p.*,b.name AS brand_name FROM products p LEFT JOIN brands b ON p.brand_id=b.id WHERE p.tea_type IN ('dog','both') ORDER BY RAND() LIMIT {$_homeLimit}") : [];
-$blackTeaProducts      = in_array('black_tea',$visibleSections)         ? teastoreSafeQueryAll("SELECT p.*,b.name AS brand_name FROM products p LEFT JOIN brands b ON p.brand_id=b.id WHERE p.tea_type IN ('cat','both') ORDER BY RAND() LIMIT {$_homeLimit}") : [];
+$greenTeaProducts      = in_array('green_tea',$visibleSections)         ? teastoreSafeQueryAll("SELECT p.*,b.name AS brand_name FROM products p LEFT JOIN brands b ON p.brand_id=b.id WHERE p.tea_type IN ('green','both') ORDER BY RAND() LIMIT {$_homeLimit}") : [];
+$blackTeaProducts      = in_array('black_tea',$visibleSections)         ? teastoreSafeQueryAll("SELECT p.*,b.name AS brand_name FROM products p LEFT JOIN brands b ON p.brand_id=b.id WHERE p.tea_type IN ('black','both') ORDER BY RAND() LIMIT {$_homeLimit}") : [];
 $featuredProducts = in_array('featured',$visibleSections)     ? teastoreSafeQueryAll("SELECT p.*,b.name AS brand_name FROM products p LEFT JOIN brands b ON p.brand_id=b.id WHERE p.featured=1 ORDER BY RAND() LIMIT {$_homeLimit}") : [];
 $saleProducts     = in_array('sale',$visibleSections)         ? teastoreSafeQueryAll("SELECT p.*,b.name AS brand_name FROM products p LEFT JOIN brands b ON p.brand_id=b.id WHERE p.sale_price IS NOT NULL ORDER BY RAND() LIMIT {$_homeLimit}") : [];
 $brands           = in_array('brands',$visibleSections)       ? teastoreSafeQueryAll("SELECT * FROM brands ORDER BY name") : [];

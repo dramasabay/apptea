@@ -191,7 +191,7 @@ $statusEmoji  = ['pending'=>'⏳','processing'=>'⚙️','shipped'=>'🚚','deli
                 <i class="fas fa-fire" style="color:var(--p)"></i> Top Products
             </h3>
             <?php foreach($topProducts as $i=>$p):
-                $emoji = $p['tea_type']==='cat'?'🫖':($p['tea_type']==='dog'?'🍃':'🍵');
+                $emoji = $p['tea_type']==='black'?'🫖':($p['tea_type']==='green'?'🍃':'🍵');
             ?>
             <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)">
                 <div style="width:20px;font-size:11px;font-weight:800;color:var(--text-3);text-align:center"><?=$i+1?></div>

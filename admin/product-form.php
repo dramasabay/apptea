@@ -242,8 +242,8 @@ if ($id) {
         <div class="pf-group">
           <label class="pf-label">Tea Type</label>
           <select name="tea_type" class="pf-sel">
-            <option value="green" <?= ($product['tea_type']??'')  === 'dog'  ? 'selected' : '' ?>>🍃 Green</option>
-            <option value="black" <?= ($product['tea_type']??'')  === 'cat'  ? 'selected' : '' ?>>🫖 Black</option>
+            <option value="green" <?= ($product['tea_type']??'')  === 'green'  ? 'selected' : '' ?>>🍃 Green</option>
+            <option value="black" <?= ($product['tea_type']??'')  === 'black'  ? 'selected' : '' ?>>🫖 Black</option>
             <option value="all" <?= ($product['tea_type']??'both') === 'both' ? 'selected' : '' ?>>🍵 Both</option>
           </select>
         </div>

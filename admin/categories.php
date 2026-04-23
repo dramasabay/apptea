@@ -96,9 +96,9 @@ require_once __DIR__ . '/admin-header.php';
                 <div class="form-group">
                     <label>Tea Type</label>
                     <select name="tea_type" class="form-input">
-                        <option value="green" <?= ($editing['tea_type'] ?? '') === 'dog' ? 'selected' : '' ?>>Dog</option>
-                        <option value="black" <?= ($editing['tea_type'] ?? '') === 'cat' ? 'selected' : '' ?>>Cat</option>
-                        <option value="all" <?= ($editing['tea_type'] ?? 'both') === 'both' ? 'selected' : '' ?>>Both</option>
+                        <option value="green" <?= ($editing['tea_type'] ?? '') === 'green' ? 'selected' : '' ?>>🍃 Green</option>
+                        <option value="black" <?= ($editing['tea_type'] ?? '') === 'black' ? 'selected' : '' ?>>🫖 Black</option>
+                        <option value="all" <?= ($editing['tea_type'] ?? 'both') === 'both' ? 'selected' : '' ?>>🍵 Both</option>
                     </select>
                 </div>
                 <button type="submit" class="btn btn-primary btn-sm"><?= $editing ? 'Update' : 'Add Category' ?></button>
