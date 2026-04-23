@@ -69,10 +69,15 @@ function sBadge($s) {
         <div style="display:flex;align-items:center;gap:12px">
             <h3>Order <?= htmlspecialchars($viewOrder['order_number']) ?></h3>
             <?= sBadge($viewOrder['status']) ?>
-            <?php if ($viewOrder['payment_method'] === 'stripe'): ?>
-            <span class="badge" style="background:#fff0f0;color:#dc2626;border:1px solid #fecaca">Stripe/PayPal <?= ucfirst($viewOrder['payment_status']??'pending') ?></span>
+            <?php 
+            $pm = $viewOrder['payment_method'];
+            $ps = $viewOrder['payment_status'] ?? 'pending';
+            if ($pm === 'cod'): ?>
+            <span class="badge" style="background:#fef3c7;color:#d97706;border:1px solid #fde68a">COD <?= ucfirst($ps) ?></span>
+            <?php elseif (in_array($pm, ['stripe','paypal'])): ?>
+            <span class="badge" style="background:#fff0f0;color:#dc2626;border:1px solid #fecaca"><?= strtoupper($pm) ?> <?= ucfirst($ps) ?></span>
             <?php else: ?>
-            <span class="badge" style="background:#f0fdf4;color:#16a34a;border:1px solid #bbf7d0">Online Payment</span>
+            <span class="badge" style="background:#f0fdf4;color:#16a34a;border:1px solid #bbf7d0"><?= strtoupper($pm) ?> <?= ucfirst($ps) ?></span>
             <?php endif; ?>
         </div>
         <a href="?" class="btn btn-ghost btn-sm"><i class="fas fa-arrow-left"></i> Back</a>
@@ -158,10 +163,14 @@ function sBadge($s) {
             </td>
             <td><strong><?= formatPrice($o['total']) ?></strong></td>
             <td>
-                <?php if ($o['payment_method'] === 'stripe'): ?>
-                <span class="badge" style="background:#fff0f0;color:#dc2626;border:1px solid #fecaca;font-size:10px">Stripe/PayPal</span>
+                <?php 
+                $pm = $o['payment_method'];
+                if ($pm === 'cod'): ?>
+                <span class="badge" style="background:#fef3c7;color:#d97706;border:1px solid #fde68a;font-size:10px">COD</span>
+                <?php elseif (in_array($pm, ['stripe','paypal'])): ?>
+                <span class="badge" style="background:#fff0f0;color:#dc2626;border:1px solid #fecaca;font-size:10px"><?= strtoupper($pm) ?></span>
                 <?php else: ?>
-                <span class="badge" style="background:#f0fdf4;color:#16a34a;border:1px solid #bbf7d0;font-size:10px">Online</span>
+                <span class="badge" style="background:#f0fdf4;color:#16a34a;border:1px solid #bbf7d0;font-size:10px"><?= strtoupper($pm) ?></span>
                 <?php endif; ?>
             </td>
             <td><?= sBadge($o['status']) ?></td>

@@ -39,6 +39,7 @@ $shipping      = $subtotal >= $freeThreshold ? 0 : $deliveryFee;
 $total         = $subtotal + $shipping;
 $stripeEnabled = getSetting('stripe_enabled', '1') === '1';
 $paypalEnabled = getSetting('paypal_enabled', '1') === '1';
+$codEnabled    = getSetting('cod_enabled', '0') === '1';
 $stripeKey     = trim((string)getSetting('stripe_publishable_key', ''));
 $currency      = getSetting('currency_code', 'USD');
 $orderRef      = 'TS-' . strtoupper(substr(uniqid(), -8));
@@ -50,7 +51,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $phone         = sanitize($_POST['phone']   ?? '');
     $address       = sanitize($_POST['address'] ?? '');
     $notes         = sanitize($_POST['notes']   ?? '');
-    $payment       = in_array($_POST['payment'] ?? '', ['stripe','paypal']) ? $_POST['payment'] : 'stripe';
+    $payment       = in_array($_POST['payment'] ?? '', ['stripe','paypal','cod']) ? $_POST['payment'] : 'stripe';
     $paymentIntentId = sanitize($_POST['payment_intent_id'] ?? '');
     $paypalOrderId   = sanitize($_POST['paypal_order_id']   ?? '');
     $paymentStatus   = sanitize($_POST['payment_status_field'] ?? 'pending');
@@ -87,6 +88,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             $paymentIntentId = $paypalOrderId;
         }
+    }
+
+    // COD requires no pre-payment verification
+    if (!$errors && $payment === 'cod') {
+        $paymentStatus = 'pending';
     }
 
     if ($errors) {
@@ -166,7 +172,7 @@ require_once __DIR__ . '/../includes/header.php';
         <input type="hidden" name="payment_intent_id" id="paymentIntentInput" value="">
         <input type="hidden" name="paypal_order_id" id="paypalOrderInput" value="">
         <input type="hidden" name="payment_status_field" id="paymentStatusField" value="pending">
-        <input type="hidden" name="payment" id="paymentMethodInput" value="<?= $stripeEnabled ? 'stripe' : 'paypal' ?>">
+        <input type="hidden" name="payment" id="paymentMethodInput" value="<?= htmlspecialchars($defaultPayment) ?>">
 
         <div class="checkout-grid">
             <!-- LEFT: Form -->
@@ -202,9 +208,17 @@ require_once __DIR__ . '/../includes/header.php';
                 <div class="checkout-section">
                     <h3 style="font-size:16px;font-weight:800;margin-bottom:16px;">💳 Payment Method</h3>
 
+                    <?php 
+                    // Determine which payment method to select by default (first enabled one)
+                    $defaultPayment = 'stripe';
+                    if ($stripeEnabled) $defaultPayment = 'stripe';
+                    elseif ($paypalEnabled) $defaultPayment = 'paypal';
+                    elseif ($codEnabled) $defaultPayment = 'cod';
+                    ?>
+                    
                     <?php if ($stripeEnabled): ?>
-                    <div class="payment-method active" id="pm-stripe" onclick="selectPayment('stripe')" aria-checked="true">
-                        <input type="radio" name="_pm_radio" value="stripe" checked style="display:none">
+                    <div class="payment-method <?= $defaultPayment === 'stripe' ? 'active' : '' ?>" id="pm-stripe" onclick="selectPayment('stripe')" aria-checked="<?= $defaultPayment === 'stripe' ? 'true' : 'false' ?>">
+                        <input type="radio" name="_pm_radio" value="stripe" <?= $defaultPayment === 'stripe' ? 'checked' : '' ?> style="display:none">
                         <div style="width:42px;height:28px;background:#635bff;border-radius:6px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
                             <span style="color:#fff;font-weight:900;font-size:11px;">STRIPE</span>
                         </div>
@@ -212,13 +226,13 @@ require_once __DIR__ . '/../includes/header.php';
                             <div style="font-weight:700;font-size:13px;">💳 Credit / Debit Card</div>
                             <div style="font-size:11px;color:#6b7280;">Visa, Mastercard, Amex & more · Secured by Stripe</div>
                         </div>
-                        <div class="pm-dot active" id="dot-stripe"><div style="width:10px;height:10px;border-radius:50%;background:var(--primary);" id="dot-stripe-inner"></div></div>
+                        <div class="pm-dot <?= $defaultPayment === 'stripe' ? 'active' : '' ?>" id="dot-stripe"><div style="width:10px;height:10px;border-radius:50%;background:var(--primary);display:<?= $defaultPayment === 'stripe' ? 'block' : 'none' ?>" id="dot-stripe-inner"></div></div>
                     </div>
                     <?php endif; ?>
 
                     <?php if ($paypalEnabled): ?>
-                    <div class="payment-method <?= !$stripeEnabled ? 'active' : '' ?>" id="pm-paypal" onclick="selectPayment('paypal')" aria-checked="<?= !$stripeEnabled ? 'true' : 'false' ?>">
-                        <input type="radio" name="_pm_radio" value="paypal" style="display:none" <?= !$stripeEnabled ? 'checked' : '' ?>>
+                    <div class="payment-method <?= $defaultPayment === 'paypal' ? 'active' : '' ?>" id="pm-paypal" onclick="selectPayment('paypal')" aria-checked="<?= $defaultPayment === 'paypal' ? 'true' : 'false' ?>">
+                        <input type="radio" name="_pm_radio" value="paypal" <?= $defaultPayment === 'paypal' ? 'checked' : '' ?> style="display:none">
                         <div style="width:42px;height:28px;background:#003087;border-radius:6px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
                             <span style="color:#fff;font-weight:900;font-size:10px;">PayPal</span>
                         </div>
@@ -226,7 +240,21 @@ require_once __DIR__ . '/../includes/header.php';
                             <div style="font-weight:700;font-size:13px;">🅿️ PayPal</div>
                             <div style="font-size:11px;color:#6b7280;">Pay with your PayPal account · Fast & secure</div>
                         </div>
-                        <div class="pm-dot <?= !$stripeEnabled ? 'active' : '' ?>" id="dot-paypal"><div style="width:10px;height:10px;border-radius:50%;background:var(--primary);display:<?= !$stripeEnabled ? 'block' : 'none' ?>;" id="dot-paypal-inner"></div></div>
+                        <div class="pm-dot <?= $defaultPayment === 'paypal' ? 'active' : '' ?>" id="dot-paypal"><div style="width:10px;height:10px;border-radius:50%;background:var(--primary);display:<?= $defaultPayment === 'paypal' ? 'block' : 'none' ?>" id="dot-paypal-inner"></div></div>
+                    </div>
+                    <?php endif; ?>
+
+                    <?php if ($codEnabled): ?>
+                    <div class="payment-method <?= $defaultPayment === 'cod' ? 'active' : '' ?>" id="pm-cod" onclick="selectPayment('cod')" aria-checked="<?= $defaultPayment === 'cod' ? 'true' : 'false' ?>">
+                        <input type="radio" name="_pm_radio" value="cod" <?= $defaultPayment === 'cod' ? 'checked' : '' ?> style="display:none">
+                        <div style="width:42px;height:28px;background:#059669;border-radius:6px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                            <span style="color:#fff;font-weight:900;font-size:10px;">COD</span>
+                        </div>
+                        <div style="flex:1;">
+                            <div style="font-weight:700;font-size:13px;">💵 Cash on Delivery</div>
+                            <div style="font-size:11px;color:#6b7280;">Pay cash when you receive your order</div>
+                        </div>
+                        <div class="pm-dot <?= $defaultPayment === 'cod' ? 'active' : '' ?>" id="dot-cod"><div style="width:10px;height:10px;border-radius:50%;background:var(--primary);display:<?= $defaultPayment === 'cod' ? 'block' : 'none' ?>" id="dot-cod-inner"></div></div>
                     </div>
                     <?php endif; ?>
 
@@ -353,7 +381,7 @@ let _stripe = null, _cardElement = null, _stripeClientSecret = null;
 function selectPayment(val) {
     _currentPayment = val;
     document.getElementById('paymentMethodInput').value = val;
-    ['stripe', 'paypal'].forEach(id => {
+    ['stripe', 'paypal', 'cod'].forEach(id => {
         const pm  = document.getElementById('pm-' + id);
         const dot = document.getElementById('dot-' + id);
         const inn = document.getElementById('dot-' + id + '-inner');
