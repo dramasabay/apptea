@@ -1,0 +1,35 @@
+Broteach on Webmin / Virtualmin
+
+1) Upload the ZIP and extract it into your domain folder, usually public_html
+2) Create a MySQL database and user in Webmin/Virtualmin
+3) Open https://yourdomain.com/setup.php
+4) Enter DB host, DB username, DB password, DB name, and your real Site URL
+5) After install, delete or rename setup.php
+6) Make sure the following folders are writable if you upload images:
+   - assets/img
+   - assets/img/products
+
+Apache notes:
+- This project includes a safer .htaccess for Apache
+- If your server uses Nginx only, .htaccess will not apply
+
+Manual config file:
+- includes/config.php
+- Set DB_HOST, DB_USER, DB_PASS, DB_NAME
+- SITE_URL_CONFIG can stay as __AUTO__ or be changed to your full URL
+
+Recommended PHP extensions:
+- pdo_mysql
+- mbstring
+- json
+- fileinfo
+
+Default admin login after import:
+- Email: admin@broteach.net
+- Password: password
+
+
+Bakong auto-confirm endpoint: `pages/khqr-webhook.php`
+- send JSON with `order_ref` or `session_token`
+- include `status: paid`
+- protect with `X-Webhook-Secret` matching admin payment settings
