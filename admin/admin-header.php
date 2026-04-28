@@ -229,6 +229,12 @@ select.settings-input:focus{border-color:var(--p);box-shadow:0 0 0 4px var(--p-l
         <a href="<?= pretty_url('admin/homepage.php') ?>" class="nav-item <?= $currentPage==='homepage.php'?'active':'' ?>">
             <span class="nav-icon"><i class="fas fa-home"></i></span> Homepage
         </a>
+        <a href="<?= pretty_url('admin/sections.php') ?>" class="nav-item <?= $currentPage==='sections.php'?'active':'' ?>">
+            <span class="nav-icon"><i class="fas fa-layer-group"></i></span> Sections
+        </a>
+        <a href="<?= pretty_url('admin/custom-css.php') ?>" class="nav-item <?= $currentPage==='custom-css.php'?'active':'' ?>">
+            <span class="nav-icon"><i class="fas fa-paint-brush"></i></span> Custom CSS
+        </a>
         <a href="<?= pretty_url('admin/nav-menu.php') ?>" class="nav-item <?= $currentPage==='nav-menu.php'?'active':'' ?>">
             <span class="nav-icon"><i class="fas fa-bars"></i></span> Nav Menu
         </a>

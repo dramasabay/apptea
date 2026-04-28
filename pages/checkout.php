@@ -1,6 +1,5 @@
 <?php
 require_once __DIR__ . '/../includes/config.php';
-require_once __DIR__ . '/../includes/stripe.php';
 require_once __DIR__ . '/../includes/paypal.php';
 require_once __DIR__ . '/../includes/telegram.php';
 $pageTitle = 'Checkout – ' . getSetting('site_name', 'TeaStore');
@@ -37,10 +36,13 @@ $freeThreshold = (float)getSetting('free_delivery_threshold', '49');
 $deliveryFee   = (float)getSetting('delivery_fee', '3.50');
 $shipping      = $subtotal >= $freeThreshold ? 0 : $deliveryFee;
 $total         = $subtotal + $shipping;
-$stripeEnabled = getSetting('stripe_enabled', '1') === '1';
 $paypalEnabled = getSetting('paypal_enabled', '1') === '1';
 $codEnabled    = getSetting('cod_enabled', '0') === '1';
-$stripeKey     = trim((string)getSetting('stripe_publishable_key', ''));
+$googlePayEnabled = getSetting('google_pay_enabled', '0') === '1';
+$venmoEnabled  = getSetting('venmo_enabled', '0') === '1';
+$googlePayMerchantId = getSetting('google_pay_merchant_id', '');
+$googlePayEnv  = getSetting('google_pay_env', 'TEST');
+$venmoUsername = getSetting('venmo_business_username', '');
 $currency      = getSetting('currency_code', 'USD');
 $orderRef      = 'TS-' . strtoupper(substr(uniqid(), -8));
 
@@ -51,7 +53,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $phone         = sanitize($_POST['phone']   ?? '');
     $address       = sanitize($_POST['address'] ?? '');
     $notes         = sanitize($_POST['notes']   ?? '');
-    $payment       = in_array($_POST['payment'] ?? '', ['stripe','paypal','cod']) ? $_POST['payment'] : 'stripe';
+    $payment       = in_array($_POST['payment'] ?? '', ['paypal','cod','google_pay','venmo']) ? $_POST['payment'] : 'paypal';
     $paymentIntentId = sanitize($_POST['payment_intent_id'] ?? '');
     $paypalOrderId   = sanitize($_POST['paypal_order_id']   ?? '');
     $paymentStatus   = sanitize($_POST['payment_status_field'] ?? 'pending');
@@ -63,24 +65,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!$email)   $errors[] = 'Email is required';
     if (!$address) $errors[] = 'Delivery address is required';
 
-    // Verify Stripe payment
-    if (!$errors && $payment === 'stripe') {
-        if (!$paymentIntentId) {
-            $errors[] = 'Please complete Stripe card payment before placing order.';
-        } else {
-            $pi = stripeGetPaymentIntent($paymentIntentId);
-            if (!$pi['ok'] || !in_array($pi['status'] ?? '', ['succeeded','requires_capture'])) {
-                $errors[] = 'Stripe payment not confirmed. Please try again.';
-            } else {
-                $paymentStatus = 'paid';
-            }
-        }
-    }
-
     // Verify PayPal payment
     if (!$errors && $payment === 'paypal') {
         if (!$paypalOrderId) {
             $errors[] = 'Please complete PayPal payment before placing order.';
+        } else {
+            if ($paymentStatus !== 'paid') {
+                $capture = paypalCaptureOrder($paypalOrderId);
+                $paymentStatus = $capture['ok'] ? 'paid' : 'pending';
+            }
+            $paymentIntentId = $paypalOrderId;
+        }
+    }
+
+    // Google Pay & Venmo are processed similarly to PayPal (via PayPal gateway)
+    if (!$errors && in_array($payment, ['google_pay', 'venmo'])) {
+        if (!$paypalOrderId) {
+            $errors[] = 'Please complete payment before placing order.';
         } else {
             if ($paymentStatus !== 'paid') {
                 $capture = paypalCaptureOrder($paypalOrderId);
@@ -210,26 +211,13 @@ require_once __DIR__ . '/../includes/header.php';
 
                     <?php 
                     // Determine which payment method to select by default (first enabled one)
-                    $defaultPayment = 'stripe';
-                    if ($stripeEnabled) $defaultPayment = 'stripe';
-                    elseif ($paypalEnabled) $defaultPayment = 'paypal';
+                    $defaultPayment = 'paypal';
+                    if ($paypalEnabled) $defaultPayment = 'paypal';
+                    elseif ($googlePayEnabled) $defaultPayment = 'google_pay';
+                    elseif ($venmoEnabled) $defaultPayment = 'venmo';
                     elseif ($codEnabled) $defaultPayment = 'cod';
                     ?>
                     
-                    <?php if ($stripeEnabled): ?>
-                    <div class="payment-method <?= $defaultPayment === 'stripe' ? 'active' : '' ?>" id="pm-stripe" onclick="selectPayment('stripe')" aria-checked="<?= $defaultPayment === 'stripe' ? 'true' : 'false' ?>">
-                        <input type="radio" name="_pm_radio" value="stripe" <?= $defaultPayment === 'stripe' ? 'checked' : '' ?> style="display:none">
-                        <div style="width:42px;height:28px;background:#635bff;border-radius:6px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-                            <span style="color:#fff;font-weight:900;font-size:11px;">STRIPE</span>
-                        </div>
-                        <div style="flex:1;">
-                            <div style="font-weight:700;font-size:13px;">💳 Credit / Debit Card</div>
-                            <div style="font-size:11px;color:#6b7280;">Visa, Mastercard, Amex & more · Secured by Stripe</div>
-                        </div>
-                        <div class="pm-dot <?= $defaultPayment === 'stripe' ? 'active' : '' ?>" id="dot-stripe"><div style="width:10px;height:10px;border-radius:50%;background:var(--primary);display:<?= $defaultPayment === 'stripe' ? 'block' : 'none' ?>" id="dot-stripe-inner"></div></div>
-                    </div>
-                    <?php endif; ?>
-
                     <?php if ($paypalEnabled): ?>
                     <div class="payment-method <?= $defaultPayment === 'paypal' ? 'active' : '' ?>" id="pm-paypal" onclick="selectPayment('paypal')" aria-checked="<?= $defaultPayment === 'paypal' ? 'true' : 'false' ?>">
                         <input type="radio" name="_pm_radio" value="paypal" <?= $defaultPayment === 'paypal' ? 'checked' : '' ?> style="display:none">
@@ -244,6 +232,34 @@ require_once __DIR__ . '/../includes/header.php';
                     </div>
                     <?php endif; ?>
 
+                    <?php if ($googlePayEnabled): ?>
+                    <div class="payment-method <?= $defaultPayment === 'google_pay' ? 'active' : '' ?>" id="pm-google-pay" onclick="selectPayment('google_pay')" aria-checked="<?= $defaultPayment === 'google_pay' ? 'true' : 'false' ?>">
+                        <input type="radio" name="_pm_radio" value="google_pay" <?= $defaultPayment === 'google_pay' ? 'checked' : '' ?> style="display:none">
+                        <div style="width:42px;height:28px;background:#4285f4;border-radius:6px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                            <span style="color:#fff;font-weight:900;font-size:9px;">G Pay</span>
+                        </div>
+                        <div style="flex:1;">
+                            <div style="font-weight:700;font-size:13px;">🔵 Google Pay</div>
+                            <div style="font-size:11px;color:#6b7280;">Fast checkout with Google · Secure & easy</div>
+                        </div>
+                        <div class="pm-dot <?= $defaultPayment === 'google_pay' ? 'active' : '' ?>" id="dot-google-pay"><div style="width:10px;height:10px;border-radius:50%;background:var(--primary);display:<?= $defaultPayment === 'google_pay' ? 'block' : 'none' ?>" id="dot-google-pay-inner"></div></div>
+                    </div>
+                    <?php endif; ?>
+
+                    <?php if ($venmoEnabled): ?>
+                    <div class="payment-method <?= $defaultPayment === 'venmo' ? 'active' : '' ?>" id="pm-venmo" onclick="selectPayment('venmo')" aria-checked="<?= $defaultPayment === 'venmo' ? 'true' : 'false' ?>">
+                        <input type="radio" name="_pm_radio" value="venmo" <?= $defaultPayment === 'venmo' ? 'checked' : '' ?> style="display:none">
+                        <div style="width:42px;height:28px;background:#3d95ce;border-radius:6px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                            <span style="color:#fff;font-weight:900;font-size:10px;">Venmo</span>
+                        </div>
+                        <div style="flex:1;">
+                            <div style="font-weight:700;font-size:13px;">💜 Venmo</div>
+                            <div style="font-size:11px;color:#6b7280;">Pay with Venmo · Quick & social</div>
+                        </div>
+                        <div class="pm-dot <?= $defaultPayment === 'venmo' ? 'active' : '' ?>" id="dot-venmo"><div style="width:10px;height:10px;border-radius:50%;background:var(--primary);display:<?= $defaultPayment === 'venmo' ? 'block' : 'none' ?>" id="dot-venmo-inner"></div></div>
+                    </div>
+                    <?php endif; ?>
+
                     <?php if ($codEnabled): ?>
                     <div class="payment-method <?= $defaultPayment === 'cod' ? 'active' : '' ?>" id="pm-cod" onclick="selectPayment('cod')" aria-checked="<?= $defaultPayment === 'cod' ? 'true' : 'false' ?>">
                         <input type="radio" name="_pm_radio" value="cod" <?= $defaultPayment === 'cod' ? 'checked' : '' ?> style="display:none">
@@ -251,12 +267,29 @@ require_once __DIR__ . '/../includes/header.php';
                             <span style="color:#fff;font-weight:900;font-size:10px;">COD</span>
                         </div>
                         <div style="flex:1;">
-                            <div style="font-weight:700;font-size:13px;">💵 Cash on Delivery</div>
-                            <div style="font-size:11px;color:#6b7280;">Pay cash when you receive your order</div>
+                            <div style="font-weight:700;font-size:13px;">🚚 Delivery Service</div>
+                            <div style="font-size:11px;color:#6b7280;">Pay cash when you receive your order · Location required</div>
                         </div>
                         <div class="pm-dot <?= $defaultPayment === 'cod' ? 'active' : '' ?>" id="dot-cod"><div style="width:10px;height:10px;border-radius:50%;background:var(--primary);display:<?= $defaultPayment === 'cod' ? 'block' : 'none' ?>" id="dot-cod-inner"></div></div>
                     </div>
                     <?php endif; ?>
+
+                    <!-- Delivery Location Picker (shown for COD/Delivery) -->
+                    <div id="delivery-location-panel" style="margin-top:16px;display:<?= $defaultPayment === 'cod' ? 'block' : 'none';?>;">
+                        <div class="form-group">
+                            <label><i class="fas fa-map-marker-alt" style="color:#dc2626;"></i> Delivery Location</label>
+                            <div style="display:flex;gap:8px;margin-bottom:8px;">
+                                <button type="button" class="btn btn-sm" onclick="getLocation()" style="background:#2d6a4f;color:#fff;border:none;cursor:pointer;"><i class="fas fa-location-arrow"></i> Use My Current Location</button>
+                            </div>
+                            <div id="location-status" style="font-size:12px;color:#6b7280;margin-bottom:8px;"></div>
+                            <div id="google-map-container" style="width:100%;height:300px;border:1px solid #e5e7eb;border-radius:12px;overflow:hidden;display:none;">
+                                <iframe id="google-map-frame" width="100%" height="100%" frameborder="0" scrolling="no" marginheight="0" marginwidth="0"></iframe>
+                            </div>
+                            <input type="hidden" id="latitude" name="latitude">
+                            <input type="hidden" id="longitude" name="longitude">
+                            <div id="location-coords" style="font-size:11px;color:#9ca3af;margin-top:6px;"></div>
+                        </div>
+                    </div>
 
                     <!-- Stripe Card Form -->
                     <?php if ($stripeEnabled && $stripeKey): ?>
@@ -400,8 +433,51 @@ function selectPayment(val) {
     });
     const stripePanel = document.getElementById('stripe-panel');
     const paypalPanel = document.getElementById('paypal-panel');
+    const locationPanel = document.getElementById('delivery-location-panel');
     if (stripePanel) stripePanel.style.display = val === 'stripe' ? '' : 'none';
     if (paypalPanel) paypalPanel.style.display = val === 'paypal' ? '' : 'none';
+    if (locationPanel) locationPanel.style.display = val === 'cod' ? '' : 'none';
+}
+
+// ── Get User Location for Delivery ───────────────────────────────────────────
+function getLocation() {
+    const statusEl = document.getElementById('location-status');
+    const mapContainer = document.getElementById('google-map-container');
+    const mapFrame = document.getElementById('google-map-frame');
+    const latInput = document.getElementById('latitude');
+    const lngInput = document.getElementById('longitude');
+    const coordsEl = document.getElementById('location-coords');
+    
+    if (!navigator.geolocation) {
+        statusEl.innerHTML = '<span style="color:#dc2626;">Geolocation is not supported by your browser.</span>';
+        return;
+    }
+    
+    statusEl.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Getting your location...';
+    
+    navigator.geolocation.getCurrentPosition(
+        function(position) {
+            const lat = position.coords.latitude;
+            const lng = position.coords.longitude;
+            latInput.value = lat;
+            lngInput.value = lng;
+            
+            // Show map with user's location using OpenStreetMap (free, no API key needed)
+            const osmUrl = 'https://www.openstreetmap.org/export/embed.html?bbox=' + (lng-0.01) + ',' + (lat-0.01) + ',' + (lng+0.01) + ',' + (lat+0.01) + '&layer=mapnik&marker=' + lat + ',' + lng;
+            mapFrame.src = osmUrl;
+            mapContainer.style.display = 'block';
+            coordsEl.innerHTML = '<strong>Location:</strong> ' + lat.toFixed(6) + ', ' + lng.toFixed(6);
+            statusEl.innerHTML = '<span style="color:#16a34a;"><i class="fas fa-check-circle"></i> Location captured successfully!</span>';
+        },
+        function(error) {
+            let msg = 'Unable to get your location.';
+            if (error.code === 1) msg = 'Location permission denied. Please allow location access.';
+            if (error.code === 2) msg = 'Location service unavailable.';
+            if (error.code === 3) msg = 'Location request timed out.';
+            statusEl.innerHTML = '<span style="color:#dc2626;">' + msg + '</span>';
+        },
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+    );
 }
 
 // ── Form validation ──────────────────────────────────────────────────────────
