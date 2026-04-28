@@ -1,6 +1,6 @@
--- TeaStore Complete Database (Merged)
--- This file combines database.sql + database_migration.sql into one complete setup script
--- Use this for fresh installations
+-- TeaStore Complete Database (Merged & Updated)
+-- This file combines all database requirements into one complete setup script
+-- Use this for fresh installations - includes Dynamic Sections, Custom CSS, Google Pay, Venmo
 
 CREATE DATABASE IF NOT EXISTS teastore_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE teastore_db;
@@ -87,7 +87,9 @@ CREATE TABLE IF NOT EXISTS orders (
     email VARCHAR(150),
     phone VARCHAR(20),
     address TEXT,
-    payment_method VARCHAR(50) DEFAULT 'stripe',
+    latitude DECIMAL(10,8),
+    longitude DECIMAL(11,8),
+    payment_method VARCHAR(50) DEFAULT 'paypal',
     payment_status ENUM('pending','paid','failed') DEFAULT 'pending',
     payment_intent_id VARCHAR(255) NULL,
     notes TEXT,
@@ -99,146 +101,166 @@ CREATE TABLE IF NOT EXISTS order_items (
     id INT AUTO_INCREMENT PRIMARY KEY,
     order_id INT NOT NULL,
     product_id INT NOT NULL,
-    product_name VARCHAR(255),
-    variant_info VARCHAR(255),
-    qty INT NOT NULL,
+    variant_id INT DEFAULT NULL,
+    name VARCHAR(255) NOT NULL,
     price DECIMAL(10,2) NOT NULL,
+    qty INT NOT NULL,
+    options_json TEXT,
     FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
-    FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+    FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE RESTRICT,
+    FOREIGN KEY (variant_id) REFERENCES product_variants(id) ON DELETE SET NULL
 );
 
 CREATE TABLE IF NOT EXISTS cart (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    session_id VARCHAR(100),
-    user_id INT,
+    user_id INT DEFAULT NULL,
+    session_id VARCHAR(128) DEFAULT NULL,
     product_id INT NOT NULL,
-    variant_id INT,
-    qty INT DEFAULT 1,
-    options_json TEXT,
+    variant_id INT DEFAULT NULL,
+    qty INT NOT NULL DEFAULT 1,
+    options_json TEXT DEFAULT NULL,
     added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
+    FOREIGN KEY (variant_id) REFERENCES product_variants(id) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS wishlist (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT DEFAULT NULL,
+    session_id VARCHAR(128) DEFAULT NULL,
+    product_id INT NOT NULL,
+    added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY unique_wishlist (user_id, product_id),
+    UNIQUE KEY unique_wishlist_session (session_id, product_id),
     FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS reviews (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    product_id INT NOT NULL,
+    user_id INT,
+    rating TINYINT NOT NULL CHECK (rating BETWEEN 1 AND 5),
+    title VARCHAR(255),
+    comment TEXT,
+    is_approved TINYINT(1) DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS coupons (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    code VARCHAR(50) UNIQUE NOT NULL,
+    discount_type ENUM('percent','fixed') DEFAULT 'percent',
+    discount_value DECIMAL(10,2) NOT NULL,
+    min_order DECIMAL(10,2) DEFAULT 0,
+    max_uses INT DEFAULT NULL,
+    used_count INT DEFAULT 0,
+    expires_at DATETIME,
+    is_active TINYINT(1) DEFAULT 1,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS newsletter_subscribers (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    email VARCHAR(150) UNIQUE NOT NULL,
+    subscribed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS site_settings (
     id INT AUTO_INCREMENT PRIMARY KEY,
     setting_key VARCHAR(100) UNIQUE NOT NULL,
     setting_value TEXT,
-    setting_group VARCHAR(50) DEFAULT 'general',
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    setting_group VARCHAR(50) DEFAULT 'general'
 );
 
-CREATE TABLE IF NOT EXISTS wishlist (
+CREATE TABLE IF NOT EXISTS nav_menu_items (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    user_id INT NOT NULL,
-    product_id INT NOT NULL,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
-    UNIQUE KEY unique_wishlist (user_id, product_id)
+    label VARCHAR(100) NOT NULL,
+    url VARCHAR(255) NOT NULL,
+    parent_id INT DEFAULT NULL,
+    sort_order INT DEFAULT 0,
+    is_active TINYINT(1) DEFAULT 1,
+    FOREIGN KEY (parent_id) REFERENCES nav_menu_items(id) ON DELETE SET NULL
 );
 
-CREATE TABLE IF NOT EXISTS reviews (
+CREATE TABLE IF NOT EXISTS product_options (
     id INT AUTO_INCREMENT PRIMARY KEY,
     product_id INT NOT NULL,
-    user_id INT NOT NULL,
-    rating INT CHECK (rating BETWEEN 1 AND 5),
-    comment TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-);
-
-CREATE TABLE IF NOT EXISTS product_option_groups (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    product_id INT NOT NULL,
-    name VARCHAR(150) NOT NULL,
-    description VARCHAR(255),
-    is_required TINYINT(1) DEFAULT 0,
-    min_select INT DEFAULT 0,
-    max_select INT DEFAULT 1,
+    group_name VARCHAR(100) NOT NULL,
+    group_type ENUM('radio','checkbox','select') DEFAULT 'radio',
+    required TINYINT(1) DEFAULT 0,
     sort_order INT DEFAULT 0,
     FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS product_option_items (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    group_id INT NOT NULL,
-    name VARCHAR(150) NOT NULL,
-    price_add DECIMAL(10,2) DEFAULT 0.00,
-    is_default TINYINT(1) DEFAULT 0,
+    option_id INT NOT NULL,
+    label VARCHAR(150) NOT NULL,
+    price_add DECIMAL(10,2) DEFAULT 0,
     sort_order INT DEFAULT 0,
-    FOREIGN KEY (group_id) REFERENCES product_option_groups(id) ON DELETE CASCADE
+    FOREIGN KEY (option_id) REFERENCES product_options(id) ON DELETE CASCADE
 );
 
-CREATE TABLE IF NOT EXISTS product_images (
+CREATE TABLE IF NOT EXISTS quantity_discounts (
     id INT AUTO_INCREMENT PRIMARY KEY,
     product_id INT NOT NULL,
-    filename VARCHAR(255) NOT NULL,
-    sort_order INT DEFAULT 0,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    min_qty INT NOT NULL,
+    discount_percent DECIMAL(5,2) NOT NULL,
     FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+);
 
 -- ================================================================
--- PAYMENT & MIGRATION TABLES
+-- NEW: Dynamic Sections Table
 -- ================================================================
 
-CREATE TABLE IF NOT EXISTS payment_sessions (
+CREATE TABLE IF NOT EXISTS sections (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    session_token VARCHAR(128) NOT NULL,
-    order_ref VARCHAR(100) NOT NULL,
-    amount DECIMAL(12,2) DEFAULT 0.00,
-    payment_method VARCHAR(20) DEFAULT 'stripe',
-    payment_intent_id VARCHAR(255) NULL,
-    status VARCHAR(20) DEFAULT 'pending',
-    expires_at DATETIME NULL,
-    paid_at DATETIME NULL,
-    created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
-    KEY idx_payment_session_token (session_token),
-    KEY idx_payment_order_ref (order_ref)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
-CREATE TABLE IF NOT EXISTS nav_menu_items (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    label VARCHAR(200) NOT NULL,
-    url VARCHAR(500) DEFAULT '#',
-    icon VARCHAR(80) DEFAULT '',
-    parent_id INT DEFAULT 0,
-    sort_order INT DEFAULT 0,
+    title VARCHAR(255) NOT NULL,
+    content TEXT NOT NULL,
+    section_type VARCHAR(50) DEFAULT 'custom',
+    display_order INT DEFAULT 0,
     is_active TINYINT(1) DEFAULT 1,
-    open_new_tab TINYINT(1) DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+);
 
-CREATE TABLE IF NOT EXISTS product_quantity_discounts (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    product_id INT NOT NULL,
-    min_qty INT NOT NULL DEFAULT 5,
-    discount_pct DECIMAL(5,2) NOT NULL DEFAULT 5.00,
-    sort_order INT DEFAULT 0,
-    FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+-- ================================================================
+-- INDEXES FOR PERFORMANCE
+-- ================================================================
+
+CREATE INDEX idx_cart_user ON cart(user_id);
+CREATE INDEX idx_cart_session ON cart(session_id);
+CREATE INDEX idx_products_category ON products(category_id);
+CREATE INDEX idx_products_featured ON products(featured);
+CREATE INDEX idx_products_is_new ON products(is_new);
+CREATE INDEX idx_products_tea_type ON products(tea_type);
+CREATE INDEX idx_orders_user ON orders(user_id);
+CREATE INDEX idx_orders_status ON orders(status);
+CREATE INDEX idx_reviews_product ON reviews(product_id);
+CREATE INDEX idx_sections_active ON sections(is_active);
+CREATE INDEX idx_sections_order ON sections(display_order);
 
 -- ================================================================
 -- DEFAULT DATA
 -- ================================================================
 
+-- Default admin user (password: admin123)
 INSERT INTO users (name, email, password, role) VALUES
 ('Admin', 'admin@teastore.com', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'admin');
 
-INSERT INTO categories (name, slug, parent_id, tea_type) VALUES
-('Green Tea', 'green-tea', NULL, 'green'),
-('Black Tea', 'black-tea', NULL, 'black'),
-('White Tea', 'white-tea', NULL, 'white'),
-('Oolong Tea', 'oolong-tea', NULL, 'oolong'),
-('Herbal Tea', 'herbal-tea', NULL, 'herbal'),
-('Loose Leaf', 'loose-leaf', NULL, 'all'),
-('Tea Bags', 'tea-bags', NULL, 'all'),
-('Tea Accessories', 'tea-accessories', NULL, 'all'),
-('Tea Sets', 'tea-sets', NULL, 'all'),
-('Gift Sets', 'gift-sets', NULL, 'all'),
-('Matcha', 'matcha', 1, 'green'),
-('Chamomile', 'chamomile', 5, 'herbal');
+-- Default categories
+INSERT INTO categories (name, slug, tea_type, is_active) VALUES
+('Green Tea', 'green-tea', 'green', 1),
+('Black Tea', 'black-tea', 'black', 1),
+('White Tea', 'white-tea', 'white', 1),
+('Oolong Tea', 'oolong-tea', 'oolong', 1),
+('Herbal Tea', 'herbal-tea', 'herbal', 1),
+('Tea Sets', 'tea-sets', 'all', 1),
+('Accessories', 'accessories', 'all', 1),
+('Gift Sets', 'gift-sets', 'all', 1);
 
+-- Default brands
 INSERT INTO brands (name, slug) VALUES
 ('Twinings', 'twinings'),
 ('Harney & Sons', 'harney-sons'),
@@ -247,33 +269,21 @@ INSERT INTO brands (name, slug) VALUES
 ('Celestial Seasonings', 'celestial-seasonings'),
 ('Rishi Tea', 'rishi-tea'),
 ('Numi Organic', 'numi-organic'),
-('Republic of Tea', 'republic-of-tea'),
-('Mighty Leaf', 'mighty-leaf'),
 ('Yogi Tea', 'yogi-tea');
 
+-- Default products
 INSERT INTO products (name, slug, description, price, sale_price, stock, category_id, brand_id, featured, is_new, tea_type) VALUES
-('Twinings English Breakfast Loose Leaf 200g', 'twinings-english-breakfast-200g', 'Classic rich and robust English Breakfast tea perfect for mornings.', 18.00, NULL, 50, 6, 1, 1, 1, 'black'),
-('Harney & Sons Hot Cinnamon Spice 50 Bags', 'harney-sons-hot-cinnamon-50bags', 'Sweet and spicy blend with three types of cinnamon.', 14.00, NULL, 40, 7, 2, 0, 1, 'black'),
+('Twinings English Breakfast Loose Leaf 200g', 'twinings-english-breakfast-200g', 'Classic rich and robust English Breakfast tea perfect for mornings.', 18.00, NULL, 50, 2, 1, 1, 1, 'black'),
+('Harney & Sons Hot Cinnamon Spice 50 Bags', 'harney-sons-hot-cinnamon-50bags', 'Sweet and spicy blend with three types of cinnamon.', 14.00, NULL, 40, 2, 2, 0, 1, 'black'),
 ('Vahdam Himalayan Green Tea 100g', 'vahdam-himalayan-green-100g', 'Fresh and grassy green tea sourced from Himalayan gardens.', 12.00, NULL, 60, 1, 3, 1, 0, 'green'),
-('Rishi Tea Ceremonial Matcha 30g', 'rishi-tea-ceremonial-matcha-30g', 'Premium ceremonial grade matcha for traditional preparation.', 28.00, 24.00, 30, 11, 6, 1, 1, 'green'),
+('Rishi Tea Ceremonial Matcha 30g', 'rishi-tea-ceremonial-matcha-30g', 'Premium ceremonial grade matcha for traditional preparation.', 28.00, 24.00, 30, 1, 6, 1, 1, 'green'),
 ('Numi Organic White Tea Loose Leaf 45g', 'numi-organic-white-tea-45g', 'Delicate and sweet white tea with floral notes.', 16.00, NULL, 35, 3, 7, 0, 1, 'white'),
-('Republic of Tea Ginger Peach 50 Bags', 'republic-of-tea-ginger-peach-50bags', 'Warming ginger with sweet peach for a soothing herbal blend.', 11.50, NULL, 55, 5, 8, 0, 0, 'herbal'),
-('Bigelow Constant Comment 40 Bags', 'bigelow-constant-comment-40bags', 'Spiced orange peel and sweet spices blend.', 8.95, NULL, 80, 7, 4, 0, 0, 'black'),
-('Yogi Tea Bedtime Tea 16 Bags', 'yogi-tea-bedtime-16bags', 'Relaxing chamomile and valerian root blend for restful sleep.', 7.50, NULL, 70, 5, 10, 0, 1, 'herbal'),
-('Celestial Seasonings Sleepytime 40 Bags', 'celestial-seasonings-sleepytime-40bags', 'Iconic chamomile blend for calming evenings.', 6.99, NULL, 90, 12, 5, 0, 0, 'herbal'),
-('Mighty Leaf Organic Oolong 15 Bags', 'mighty-leaf-organic-oolong-15bags', 'Hand-picked oolong in whole leaf silken pouches.', 13.00, NULL, 45, 4, 9, 1, 0, 'oolong'),
-('Twinings Pure Chamomile 50 Bags', 'twinings-pure-chamomile-50bags', 'Pure golden chamomile flowers for a calming cup.', 9.50, 7.50, 60, 12, 1, 0, 0, 'herbal'),
-('Premium Cast Iron Teapot 600ml', 'premium-cast-iron-teapot-600ml', 'Traditional Japanese cast iron tetsubin teapot with infuser.', 45.00, NULL, 20, 9, NULL, 1, 1, 'all'),
-('Bamboo Tea Tray Serving Board', 'bamboo-tea-tray-serving-board', 'Natural bamboo tea serving tray for a complete tea experience.', 22.00, 18.00, 25, 8, NULL, 0, 0, 'all'),
-('Ceramic Tea Infuser Mug 350ml', 'ceramic-tea-infuser-mug-350ml', 'Elegant ceramic mug with built-in stainless infuser and lid.', 16.00, NULL, 40, 8, NULL, 1, 0, 'all'),
-('Harney & Sons Tokyo Blend 50 Bags', 'harney-sons-tokyo-blend-50bags', 'Green tea with coconut, ginger and vanilla.', 15.00, NULL, 38, 1, 2, 0, 1, 'green'),
-('Vahdam Earl Grey Loose Leaf 100g', 'vahdam-earl-grey-loose-leaf-100g', 'Classic bergamot-infused black tea sourced from Darjeeling.', 11.00, NULL, 50, 6, 3, 0, 0, 'black'),
-('Luxury Tea Gift Set - 5 Varieties', 'luxury-tea-gift-set-5-varieties', 'Curated gift box with 5 premium tea varieties. Perfect for gifting.', 38.00, 32.00, 15, 10, NULL, 1, 1, 'all'),
-('Rishi Turmeric Ginger Herbal 15 Bags', 'rishi-turmeric-ginger-herbal-15bags', 'Anti-inflammatory blend of turmeric, ginger and lemon.', 12.50, NULL, 45, 5, 6, 0, 0, 'herbal'),
-('Electric Gooseneck Kettle 1L', 'electric-gooseneck-kettle-1l', 'Variable temperature gooseneck kettle for perfect tea brewing.', 55.00, NULL, 18, 8, NULL, 1, 0, 'all'),
-('Numi Organic Dragon Well Green Tea 18 Bags', 'numi-organic-dragon-well-18bags', 'Nutty and sweet Chinese pan-fired green tea.', 9.00, NULL, 60, 1, 7, 0, 0, 'green');
+('Yogi Tea Bedtime Tea 16 Bags', 'yogi-tea-bedtime-16bags', 'Relaxing chamomile and valerian root blend for restful sleep.', 7.50, NULL, 70, 5, 8, 0, 1, 'herbal'),
+('Premium Cast Iron Teapot 600ml', 'premium-cast-iron-teapot-600ml', 'Traditional Japanese cast iron tetsubin teapot with infuser.', 45.00, NULL, 20, 6, NULL, 1, 1, 'all'),
+('Luxury Tea Gift Set - 5 Varieties', 'luxury-tea-gift-set-5-varieties', 'Curated gift box with 5 premium tea varieties. Perfect for gifting.', 38.00, 32.00, 15, 8, NULL, 1, 1, 'all');
 
-INSERT IGNORE INTO site_settings (setting_key, setting_value, setting_group) VALUES
+-- Default settings (NO STRIPE - only PayPal, Google Pay, Venmo, COD)
+INSERT INTO site_settings (setting_key, setting_value, setting_group) VALUES
 ('site_name', 'TeaStore', 'general'),
 ('site_tagline', 'Premium Tea & Accessories', 'general'),
 ('site_phone', '+1 800 TEA SHOP', 'general'),
@@ -296,13 +306,16 @@ INSERT IGNORE INTO site_settings (setting_key, setting_value, setting_group) VAL
 ('facebook_url', '#', 'social'),
 ('instagram_url', '#', 'social'),
 ('telegram_url', '#', 'social'),
-('stripe_enabled', '1', 'payment'),
 ('paypal_enabled', '1', 'payment'),
-('stripe_publishable_key', '', 'payment'),
-('stripe_secret_key', '', 'payment'),
+('google_pay_enabled', '0', 'payment'),
+('venmo_enabled', '0', 'payment'),
+('cod_enabled', '1', 'payment'),
 ('paypal_client_id', '', 'payment'),
 ('paypal_secret', '', 'payment'),
 ('paypal_mode', 'sandbox', 'payment'),
+('google_pay_merchant_id', '', 'payment'),
+('google_pay_env', 'TEST', 'payment'),
+('venmo_business_username', '', 'payment'),
 ('products_per_page', '16', 'general'),
 ('show_out_of_stock', '1', 'general'),
 ('currency_symbol', '$', 'general'),
@@ -333,4 +346,17 @@ INSERT IGNORE INTO site_settings (setting_key, setting_value, setting_group) VAL
 ('font_size_h2', '22', 'theme'),
 ('font_size_a', '14', 'theme'),
 ('font_size_nav', '14', 'theme'),
-('cod_enabled', '0', 'payment');
+('custom_css', '', 'design');
+
+-- Default navigation menu
+INSERT INTO nav_menu_items (label, url, sort_order, is_active) VALUES
+('Home', '/', 1, 1),
+('Shop', '/pages/shop.php', 2, 1),
+('About', '/pages/about.php', 3, 1),
+('Contact', '/pages/contact.php', 4, 1);
+
+-- Default sample sections
+INSERT INTO sections (title, content, section_type, display_order, is_active) VALUES
+('Welcome Banner', '<div style="background:linear-gradient(135deg,#2d6a4f,#1b4332);color:#fff;padding:60px 20px;text-align:center;border-radius:16px;margin:20px 0;"><h2 style="font-size:32px;margin-bottom:16px;">Welcome to TeaStore</h2><p style="font-size:18px;opacity:0.9;">Discover the finest teas from around the world, delivered fresh to your door.</p></div>', 'banner', 1, 1),
+('Why Choose Us', '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:24px;padding:40px 0;"><div style="text-align:center;padding:24px;background:#f8f9fa;border-radius:12px;"><i class="fas fa-leaf" style="font-size:40px;color:#2d6a4f;margin-bottom:16px;"></i><h4 style="margin-bottom:8px;">100% Organic</h4><p style="color:#666;font-size:14px;">All our teas are certified organic and sustainably sourced.</p></div><div style="text-align:center;padding:24px;background:#f8f9fa;border-radius:12px;"><i class="fas fa-shipping-fast" style="font-size:40px;color:#2d6a4f;margin-bottom:16px;"></i><h4 style="margin-bottom:8px;">Fast Delivery</h4><p style="color:#666;font-size:14px;">Free shipping on orders over $49. Delivered within 2-3 days.</p></div><div style="text-align:center;padding:24px;background:#f8f9fa;border-radius:12px;"><i class="fas fa-medal" style="font-size:40px;color:#2d6a4f;margin-bottom:16px;"></i><h4 style="margin-bottom:8px;">Premium Quality</h4><p style="color:#666;font-size:14px;">Hand-picked premium teas from the best gardens worldwide.</p></div></div>', 'features', 2, 1);
+

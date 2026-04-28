@@ -386,9 +386,6 @@ require_once __DIR__ . '/../includes/header.php';
     </form>
 </div>
 
-<?php if ($stripeEnabled && $stripeKey): ?>
-<script src="https://js.stripe.com/v3/"></script>
-<?php endif; ?>
 <?php
 $paypalClientId = getSetting('paypal_client_id', '');
 $paypalMode     = getSetting('paypal_mode', 'sandbox');
@@ -401,12 +398,9 @@ if ($paypalEnabled && $paypalClientId):
 const SITE_URL_JS    = <?= json_encode(SITE_URL) ?>;
 const ORDER_TOTAL    = <?= json_encode(number_format($total, 2, '.', '')) ?>;
 const ORDER_REF      = <?= json_encode($orderRef) ?>;
-const STRIPE_PUB_KEY = <?= json_encode($stripeKey) ?>;
-const STRIPE_ENABLED = <?= json_encode($stripeEnabled && $stripeKey) ?>;
 const PAYPAL_ENABLED = <?= json_encode($paypalEnabled && $paypalClientId) ?>;
 
-let _currentPayment = STRIPE_ENABLED ? 'stripe' : 'paypal';
-let _stripeConfirmed = false;
+let _currentPayment = 'paypal';
 let _paypalConfirmed = false;
 let _stripe = null, _cardElement = null, _stripeClientSecret = null;
 
@@ -414,7 +408,8 @@ let _stripe = null, _cardElement = null, _stripeClientSecret = null;
 function selectPayment(val) {
     _currentPayment = val;
     document.getElementById('paymentMethodInput').value = val;
-    ['stripe', 'paypal', 'cod'].forEach(id => {
+    // Handle all payment methods including google_pay and venmo
+    ['stripe', 'paypal', 'cod', 'google_pay', 'venmo'].forEach(id => {
         const pm  = document.getElementById('pm-' + id);
         const dot = document.getElementById('dot-' + id);
         const inn = document.getElementById('dot-' + id + '-inner');
@@ -435,7 +430,7 @@ function selectPayment(val) {
     const paypalPanel = document.getElementById('paypal-panel');
     const locationPanel = document.getElementById('delivery-location-panel');
     if (stripePanel) stripePanel.style.display = val === 'stripe' ? '' : 'none';
-    if (paypalPanel) paypalPanel.style.display = val === 'paypal' ? '' : 'none';
+    if (paypalPanel) paypalPanel.style.display = (val === 'paypal' || val === 'google_pay' || val === 'venmo') ? '' : 'none';
     if (locationPanel) locationPanel.style.display = val === 'cod' ? '' : 'none';
 }
 
