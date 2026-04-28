@@ -47,9 +47,12 @@ $heroBgColor = getSetting('hero_bg_color','#1a1a1a');
 $heroBgType  = getSetting('hero_bg_type','color');
 $heroBgImage = getSetting('hero_bg_image','');
 
-// ─── Load home sections ──────────────────────────────────────────────────────
+// ─── Load home sections (built-in) ───────────────────────────────────────────
 $rawSections = teastoreSafeQueryAll("SELECT * FROM home_sections WHERE is_visible=1 ORDER BY sort_order,id");
 $visibleSections = array_column($rawSections, 'section_key');
+
+// ─── Load custom sections ────────────────────────────────────────────────────
+$customSections = teastoreSafeQueryAll("SELECT * FROM sections WHERE is_active=1 ORDER BY display_order,id");
 
 // ─── Load product data only for visible sections ─────────────────────────────
 $_homeLimit = max(1, min(20, (int)(getSetting('home_products_per_section', '8'))));
@@ -303,6 +306,22 @@ foreach ($rawSections as $sec):
 </section>
 
 <?php endif; endforeach; ?>
+
+<!-- Render custom sections from Sections Manager -->
+<?php foreach ($customSections as $csec): ?>
+<section class="section <?= ((int)$csec['display_order'] % 2 === 0) ? 'section-alt' : '' ?>">
+    <div class="container">
+        <?php if (!empty($csec['title'])): ?>
+        <div class="section-top">
+            <h2><?= htmlspecialchars($csec['title']) ?></h2>
+        </div>
+        <?php endif; ?>
+        <div class="custom-section-content">
+            <?= $csec['content'] ?>
+        </div>
+    </div>
+</section>
+<?php endforeach; ?>
 
 <section class="section section-alt">
     <div class="container">
