@@ -5,12 +5,10 @@
 # Environment files
 .env
 .env.local
-*.env.*
+.env.*
 
-# Logs
+# Logs and temp files
 *.log
-
-# Temporary files
 *.tmp
 
 # Editor/IDE files
@@ -31,14 +29,9 @@ build/
 target/
 .gradle/
 
-# OS files
+# System files
 .DS_Store
 Thumbs.db
-
-# Coverage
-coverage/
-htmlcov/
-.coverage
 
 # Compressed files
 *.zip
