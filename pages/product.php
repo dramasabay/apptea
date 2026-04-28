@@ -24,12 +24,16 @@ $hasDiscount = $product['sale_price'] !== null;
 $discount   = $hasDiscount ? round((1 - $product['sale_price'] / $product['price']) * 100) : 0;
 $teaEmoji   = $product['tea_type'] === 'green' ? '🍃' : ($product['tea_type'] === 'black' ? '🫖' : '🍵');
 
-// Gallery images
+// Gallery images - support both product_images table and legacy images JSON field
 $galleryImages = [];
 try {
-    $gStmt = $pdo->prepare("SELECT * FROM product_images WHERE product_id=? ORDER BY sort_order,id");
-    $gStmt->execute([$product['id']]);
-    $galleryImages = $gStmt->fetchAll();
+    // Check if product_images table exists
+    $stmt = $pdo->query("SHOW TABLES LIKE 'product_images'");
+    if ($stmt->rowCount() > 0) {
+        $gStmt = $pdo->prepare("SELECT * FROM product_images WHERE product_id=? ORDER BY sort_order,id");
+        $gStmt->execute([$product['id']]);
+        $galleryImages = $gStmt->fetchAll();
+    }
 } catch (Throwable $e) {}
 
 // Build all images array: main image first, then gallery
@@ -39,6 +43,20 @@ foreach ($galleryImages as $gi) {
     if ($gi['filename'] !== ($product['image'] ?? '')) $allImages[] = $gi['filename'];
 }
 
+// Also check for images stored in JSON format in products table
+if (!empty($product['images']) && is_string($product['images'])) {
+    try {
+        $jsonImages = json_decode($product['images'], true);
+        if (is_array($jsonImages)) {
+            foreach ($jsonImages as $img) {
+                if (!in_array($img, $allImages)) {
+                    $allImages[] = $img;
+                }
+            }
+        }
+    } catch (Throwable $e) {}
+}
+
 // Variants
 $variants = $pdo->prepare("SELECT * FROM product_variants WHERE product_id=? ORDER BY attribute_name, id");
 $variants->execute([$product['id']]);
@@ -46,16 +64,54 @@ $variants = $variants->fetchAll();
 $variantGroups = [];
 foreach ($variants as $v) $variantGroups[$v['attribute_name']][] = $v;
 
-// Option groups
-$optionGroupsStmt = $pdo->prepare("SELECT * FROM product_option_groups WHERE product_id=? ORDER BY sort_order, id");
-$optionGroupsStmt->execute([$product['id']]);
-$optionGroups = $optionGroupsStmt->fetchAll();
-foreach ($optionGroups as &$g) {
-    $iStmt = $pdo->prepare("SELECT * FROM product_option_items WHERE group_id=? ORDER BY sort_order, id");
-    $iStmt->execute([$g['id']]);
-    $g['items'] = $iStmt->fetchAll();
+// Option groups - support both old (product_option_groups) and new (product_options) schema
+$optionGroups = [];
+try {
+    // Try new schema first (product_options with product_option_items)
+    $optionGroupsStmt = $pdo->prepare("SELECT * FROM product_options WHERE product_id=? ORDER BY sort_order, id");
+    $optionGroupsStmt->execute([$product['id']]);
+    $optionGroups = $optionGroupsStmt->fetchAll();
+    
+    // Rename fields to match expected format
+    foreach ($optionGroups as &$g) {
+        $g['id'] = $g['id'];
+        $g['group_name'] = $g['group_name'] ?? $g['name'] ?? 'Option';
+        $g['is_required'] = $g['required'] ?? 0;
+        $g['group_type'] = $g['group_type'] ?? 'radio';
+        
+        $iStmt = $pdo->prepare("SELECT * FROM product_option_items WHERE option_id=? ORDER BY sort_order, id");
+        $iStmt->execute([$g['id']]);
+        $items = $iStmt->fetchAll();
+        
+        // Map item fields to expected format
+        $g['items'] = [];
+        foreach ($items as $item) {
+            $g['items'][] = [
+                'id' => $item['id'],
+                'name' => $item['label'],
+                'price_add' => $item['price_add'] ?? 0,
+                'sort_order' => $item['sort_order'] ?? 0
+            ];
+        }
+    }
+    unset($g);
+} catch (Throwable $e) {
+    // Fallback: try old schema (product_option_groups)
+    try {
+        $optionGroupsStmt = $pdo->prepare("SELECT * FROM product_option_groups WHERE product_id=? ORDER BY sort_order, id");
+        $optionGroupsStmt->execute([$product['id']]);
+        $optionGroups = $optionGroupsStmt->fetchAll();
+        foreach ($optionGroups as &$g) {
+            $iStmt = $pdo->prepare("SELECT * FROM product_option_items WHERE group_id=? ORDER BY sort_order, id");
+            $iStmt->execute([$g['id']]);
+            $g['items'] = $iStmt->fetchAll();
+        }
+        unset($g);
+    } catch (Throwable $e2) {
+        // No options available
+        $optionGroups = [];
+    }
 }
-unset($g);
 
 // Quantity discount tiers
 $discountTiers = [];
