@@ -87,7 +87,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
     $groupCheckboxes = [
         'general'       => ['announcement_bar_enabled','show_telegram_btn','maintenance_mode','show_out_of_stock','reviews_enabled','guest_checkout'],
         'homepage'      => ['show_sale_badge','show_new_badge'],
-        'payment'       => ['stripe_enabled','paypal_enabled','cod_enabled'],
+        'payment'       => ['paypal_enabled','cod_enabled','google_pay_enabled','venmo_enabled'],
         'notifications' => ['telegram_notify_orders','telegram_notify_lowstock'],
         'theme'         => [],
         'shipping'      => [],
@@ -99,7 +99,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
     }
     // Process text/select fields for payment group
     if ($group === 'payment') {
-        foreach (['stripe_publishable_key','stripe_secret_key','paypal_client_id','paypal_secret','paypal_mode','currency_code'] as $field) {
+        foreach (['google_pay_merchant_id','google_pay_env','venmo_business_username','paypal_client_id','paypal_secret','paypal_mode','currency_code'] as $field) {
             if (isset($_POST['val_'.$field])) {
                 setSetting($field, $_POST['val_'.$field], 'payment');
             }
@@ -126,7 +126,7 @@ $tabs=[
     'homepage'      =>['icon'=>'fa-home',         'label'=>'Homepage'],
     'theme'         =>['icon'=>'fa-palette',      'label'=>'Theme & Branding'],
     'shipping'      =>['icon'=>'fa-truck',        'label'=>'Shipping'],
-    'payment'       =>['icon'=>'fa-credit-card',  'label'=>'Payment (Stripe & PayPal)'],
+    'payment'       =>['icon'=>'fa-credit-card',  'label'=>'Payment (PayPal, Google Pay, Venmo)'],
     'notifications' =>['icon'=>'fa-bell',         'label'=>'Telegram Alerts'],
     'social'        =>['icon'=>'fa-share-alt',    'label'=>'Social Media'],
     'tools'         =>['icon'=>'fa-tools',        'label'=>'Tools & Backup'],
@@ -458,12 +458,18 @@ async function saveUtilityPills(){
 <form method="POST"><input type="hidden" name="group" value="payment">
 <div class="settings-section">
     <h3><i class="fas fa-toggle-on" style="color:var(--primary)"></i> Payment Methods</h3>
-    <div class="settings-row"><div><label>💳 Stripe Payments</label></div><label class="toggle-switch"><input type="checkbox" name="stripe_enabled" <?=isOn('stripe_enabled','1')?'checked':''?>><span class="toggle-slider"></span></label></div>
     <div class="settings-row"><div><label>🅿️ PayPal Payments</label></div><label class="toggle-switch"><input type="checkbox" name="paypal_enabled" <?=isOn('paypal_enabled','1')?'checked':''?>><span class="toggle-slider"></span></label></div>
     <div class="settings-row"><div><label>💵 Cash on Delivery (COD)</label><p>Allow customers to pay cash when receiving their order</p></div><label class="toggle-switch"><input type="checkbox" name="cod_enabled" <?=isOn('cod_enabled', '0') ? 'checked' : '' ?>><span class="toggle-slider"></span></label></div>
-    <h4 style="font-weight:700;margin:20px 0 10px;font-size:14px;">Stripe Configuration</h4>
-    <div class="settings-row"><div><label>Stripe Publishable Key</label><p>pk_test_... or pk_live_...</p></div><input type="text" name="val_stripe_publishable_key" value="<?=s('stripe_publishable_key','')?>" class="settings-input" placeholder="pk_test_..."></div>
-    <div class="settings-row"><div><label>Stripe Secret Key</label><p>sk_test_... or sk_live_... (keep secret!)</p></div><input type="password" name="val_stripe_secret_key" value="<?=s('stripe_secret_key','')?>" class="settings-input" placeholder="sk_test_..."></div>
+    <div class="settings-row"><div><label>🔵 Google Pay</label><p>Accept payments via Google Pay (requires HTTPS)</p></div><label class="toggle-switch"><input type="checkbox" name="google_pay_enabled" <?=isOn('google_pay_enabled', '0') ? 'checked' : '' ?>><span class="toggle-slider"></span></label></div>
+    <div class="settings-row"><div><label>💜 Venmo</label><p>Accept payments via Venmo (US only)</p></div><label class="toggle-switch"><input type="checkbox" name="venmo_enabled" <?=isOn('venmo_enabled', '0') ? 'checked' : '' ?>><span class="toggle-slider"></span></label></div>
+    
+    <h4 style="font-weight:700;margin:20px 0 10px;font-size:14px;">Google Pay Configuration</h4>
+    <div class="settings-row"><div><label>Google Pay Merchant ID</label><p>Your Google Pay Merchant ID from Google Pay Console</p></div><input type="text" name="val_google_pay_merchant_id" value="<?=s('google_pay_merchant_id','')?>" class="settings-input" placeholder="12345678901234567890"></div>
+    <div class="settings-row"><div><label>Google Pay Environment</label></div><select name="val_google_pay_env" class="settings-input"><option value="TEST" <?=s('google_pay_env','TEST')==='TEST'?'selected':''?>>TEST (Sandbox)</option><option value="PRODUCTION" <?=s('google_pay_env','TEST')==='PRODUCTION'?'selected':''?>>PRODUCTION (Live)</option></select></div>
+    
+    <h4 style="font-weight:700;margin:20px 0 10px;font-size:14px;">Venmo Configuration</h4>
+    <div class="settings-row"><div><label>Venmo Business Username</label><p>Your Venmo business username (without @)</p></div><input type="text" name="val_venmo_business_username" value="<?=s('venmo_business_username','')?>" class="settings-input" placeholder="yourbusiness"></div>
+    
     <h4 style="font-weight:700;margin:20px 0 10px;font-size:14px;">PayPal Configuration</h4>
     <div class="settings-row"><div><label>PayPal Mode</label></div><select name="val_paypal_mode" class="settings-input"><option value="sandbox" <?=s('paypal_mode','sandbox')==='sandbox'?'selected':''?>>Sandbox (Test)</option><option value="live" <?=s('paypal_mode','sandbox')==='live'?'selected':''?>>Live</option></select></div>
     <div class="settings-row"><div><label>PayPal Client ID</label><p>From PayPal Developer Dashboard</p></div><input type="text" name="val_paypal_client_id" value="<?=s('paypal_client_id','')?>" class="settings-input" placeholder="AaBbCc..."></div>
