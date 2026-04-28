@@ -291,24 +291,6 @@ require_once __DIR__ . '/../includes/header.php';
                         </div>
                     </div>
 
-                    <!-- Stripe Card Form -->
-                    <?php if ($stripeEnabled && $stripeKey): ?>
-                    <div id="stripe-panel" style="margin-top:16px;">
-                        <div class="form-group">
-                            <label>Card Details</label>
-                            <div id="stripe-card-element"></div>
-                            <div id="stripe-card-errors"></div>
-                        </div>
-                        <div style="font-size:11px;color:#9ca3af;text-align:center;margin-top:8px;">
-                            🔒 Your card info is encrypted and never stored on our servers
-                        </div>
-                    </div>
-                    <?php elseif ($stripeEnabled && !$stripeKey): ?>
-                    <div id="stripe-panel" style="margin-top:16px;background:#fefce8;border:1px solid #fde047;border-radius:12px;padding:12px 14px;font-size:13px;color:#854d0e;">
-                        ⚙️ Stripe is enabled but not yet configured. Add your publishable & secret keys in Admin → Settings → Payment.
-                    </div>
-                    <?php endif; ?>
-
                     <!-- PayPal Button Container -->
                     <div id="paypal-panel" style="margin-top:16px;display:none;">
                         <div id="paypal-button-container"></div>
@@ -408,8 +390,8 @@ let _stripe = null, _cardElement = null, _stripeClientSecret = null;
 function selectPayment(val) {
     _currentPayment = val;
     document.getElementById('paymentMethodInput').value = val;
-    // Handle all payment methods including google_pay and venmo
-    ['stripe', 'paypal', 'cod', 'google_pay', 'venmo'].forEach(id => {
+    // Handle all payment methods: paypal, google_pay, venmo, cod
+    ['paypal', 'google_pay', 'venmo', 'cod'].forEach(id => {
         const pm  = document.getElementById('pm-' + id);
         const dot = document.getElementById('dot-' + id);
         const inn = document.getElementById('dot-' + id + '-inner');
@@ -426,10 +408,8 @@ function selectPayment(val) {
             if (inn) inn.style.display = 'none';
         }
     });
-    const stripePanel = document.getElementById('stripe-panel');
     const paypalPanel = document.getElementById('paypal-panel');
     const locationPanel = document.getElementById('delivery-location-panel');
-    if (stripePanel) stripePanel.style.display = val === 'stripe' ? '' : 'none';
     if (paypalPanel) paypalPanel.style.display = (val === 'paypal' || val === 'google_pay' || val === 'venmo') ? '' : 'none';
     if (locationPanel) locationPanel.style.display = val === 'cod' ? '' : 'none';
 }
@@ -494,12 +474,7 @@ async function handlePlaceOrder() {
     if (!validateForm()) return;
     const btn = document.getElementById('placeOrderBtn');
 
-    if (_currentPayment === 'stripe' && STRIPE_ENABLED) {
-        if (_stripeConfirmed) { submitForm(); return; }
-        btn.disabled = true;
-        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing card...';
-        await processStripePayment(btn);
-    } else if (_currentPayment === 'paypal' && PAYPAL_ENABLED) {
+    if (_currentPayment === 'paypal' && PAYPAL_ENABLED) {
         if (_paypalConfirmed) { submitForm(); return; }
         btn.disabled = true;
         btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Opening PayPal...';
@@ -512,42 +487,6 @@ async function handlePlaceOrder() {
         submitForm();
     }
 }
-
-// ── Stripe ───────────────────────────────────────────────────────────────────
-async function processStripePayment(btn) {
-    if (!_stripe || !_cardElement) {
-        setStripeError('Stripe not loaded. Please refresh.');
-        btn.disabled = false;
-        btn.innerHTML = '<i class="fas fa-lock" style="margin-right:8px;"></i>Place Order · <?= formatPrice($total) ?>';
-        return;
-    }
-    // Create PaymentIntent
-    const fd = new FormData();
-    fd.append('amount', ORDER_TOTAL);
-    fd.append('ref', document.getElementById('orderRefInput').value);
-    let clientSecret = _stripeClientSecret;
-    if (!clientSecret) {
-        try {
-            const res  = await fetch(SITE_URL_JS + '/pages/stripe-create-intent.php', {method:'POST',body:fd});
-            const data = await res.json();
-            if (!data.ok) { setStripeError(data.error || 'Failed to create payment.'); resetBtn(btn); return; }
-            clientSecret = data.client_secret;
-            _stripeClientSecret = clientSecret;
-        } catch(e) { setStripeError('Network error. Try again.'); resetBtn(btn); return; }
-    }
-
-    // Confirm card payment
-    const result = await _stripe.confirmCardPayment(clientSecret, {
-        payment_method: { card: _cardElement }
-    });
-    if (result.error) {
-        setStripeError(result.error.message);
-        _stripeClientSecret = null;
-        resetBtn(btn);
-    } else if (result.paymentIntent && result.paymentIntent.status === 'succeeded') {
-        _stripeConfirmed = true;
-        document.getElementById('paymentIntentInput').value = result.paymentIntent.id;
-        document.getElementById('paymentStatusField').value = 'paid';
         submitForm();
     }
 }
